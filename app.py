@@ -41,6 +41,21 @@ def load_profile(data: dict):
     st.session_state.strengths = data.get("strengths", [])
     st.session_state.achievements = data.get("achievements", [{"before": "", "after": "", "period": "", "scale": ""}])
 
+QUESTION_TYPE_HINTS: list[tuple[list[str], str]] = [
+    (["志望", "なぜ", "理由", "動機", "選んだ"], "志望動機"),
+    (["挫折", "失敗", "壁", "困難", "乗り越え", "つらかった", "苦労"], "挫折経験"),
+    (["弱み", "短所", "苦手", "長所と短所", "強みと弱み"], "強み・弱み"),
+    (["強み", "長所", "得意", "自己PR", "あなたらしさ"], "自己PR"),
+    (["学生時代", "ガクチカ", "力を入れた", "打ち込ん", "頑張った", "取り組ん"], "ガクチカ"),
+]
+
+def guess_question_type(question: str) -> str | None:
+    for keywords, label in QUESTION_TYPE_HINTS:
+        if any(kw in question for kw in keywords):
+            return label
+    return None
+
+
 def build_prompt() -> str:
     s = st.session_state
     lines = []
@@ -53,7 +68,6 @@ def build_prompt() -> str:
     lines.append(f"- 氏名：{s.name}")
     lines.append(f"- 所属：{s.university}")
 
-    # ── 強み ──
     if s.strengths:
         lines.append(f"- 自己PRの軸となる強み：{' / '.join(s.strengths)}")
 
@@ -118,54 +132,90 @@ def build_prompt() -> str:
     lines.append("---")
     lines.append("")
 
-    # ── 執筆指示 ──
-    lines.append("## 【執筆指示】")
+    # ── 執筆フレームワーク定義（6種類すべて埋め込む） ──
+    lines.append("## 【執筆フレームワーク定義】")
+    lines.append("")
+    lines.append("以下に6種類のフレームワークを定義します。どのタイプにも対応できるよう、すべて参照してください。")
     lines.append("")
 
-    question_lower = s.question
-    is_motivation = any(kw in question_lower for kw in ("志望", "なぜ", "理由", "動機"))
-
-    if is_motivation:
-        lines.append("### 志望動機の構成（5段階）")
-        lines.append("以下の順序で論理的に展開してください：")
-        lines.append("1. **原体験**：志望の原点となった具体的な経験や出来事")
-        lines.append("2. **一般化**：その経験から得た価値観・信念・問い")
-        lines.append("3. **企業固有の取り組みとの接続**：なぜ他社ではなくこの企業なのか（事業・理念・具体施策を根拠に）")
-        lines.append("4. **なぜこの職種か**：志望職種でなければならない理由を明示する")
-        lines.append("5. **締め（能動的な行動宣言）**：入社後に何を成し遂げるかを主体的な言葉で締めくくる")
-    else:
-        lines.append("### ガクチカ・自己PRの構成（5段階）")
-        lines.append("以下の順序で展開してください：")
-        lines.append("1. **結論**：最も伝えたい強みや経験を一文で")
-        lines.append("2. **課題・目標**：取り組んだ背景・目指したゴール")
-        lines.append("3. **行動**：自分が主体的に取った具体的な行動（何を・なぜ・どう工夫したか）")
-        lines.append("4. **結果**：数字で示せる成果を必ず含める")
-        lines.append("5. **学び**：そこから得た気づき・今後への活かし方")
-
+    lines.append("### タイプ1：自己PR")
+    lines.append("1. **強みの提示**：最も伝えたい強みを一言で明示する")
+    lines.append("2. **裏付けエピソード**：その強みが発揮された具体的な経験（行動・工夫・結果を含む）")
+    lines.append("3. **仕事での活かし方**：入社後にその強みをどう活かすかを具体的に述べる")
     lines.append("")
+
+    lines.append("### タイプ2：ガクチカ（学生時代に力を入れたこと）")
+    lines.append("1. **結論**：何に最も力を入れたかを一文で")
+    lines.append("2. **課題・目標**：取り組みの背景・目指したゴール")
+    lines.append("3. **行動**：自分が主体的に取った具体的な行動（何を・なぜ・どう工夫したか）")
+    lines.append("4. **結果**：数字で示せる成果を必ず含める")
+    lines.append("5. **学び**：そこから得た気づき・今後への活かし方")
+    lines.append("")
+
+    lines.append("### タイプ3：志望動機")
+    lines.append("1. **原体験**：志望の原点となった具体的な経験や出来事")
+    lines.append("2. **一般化**：その経験から得た価値観・信念・問い")
+    lines.append("3. **企業固有の取り組みとの接続**：なぜ他社ではなくこの企業なのか（事業・理念・具体施策を根拠に）")
+    lines.append("4. **なぜこの職種か**：志望職種でなければならない理由を明示する")
+    lines.append("5. **締め（能動的な行動宣言）**：入社後に何を成し遂げるかを主体的な言葉で締めくくる（「〜したい」「〜と思います」などの受け身・願望表現で終わらないこと）")
+    lines.append("")
+
+    lines.append("### タイプ4：挫折経験")
+    lines.append("1. **状況**：どのような挫折・困難だったかを具体的に")
+    lines.append("2. **原因の自己分析**：なぜそうなったか、自分自身の問題点も含めて率直に分析する")
+    lines.append("3. **立て直しの行動**：どう乗り越えたか、具体的な行動と工夫を述べる")
+    lines.append("4. **現在への影響**：その経験が現在の自分の思考・行動にどう活きているかを示す")
+    lines.append("")
+
+    lines.append("### タイプ5：強み")
+    lines.append("1. **強みの提示**：最も伝えたい強みを一言で明示する")
+    lines.append("2. **裏付けエピソード**：その強みが発揮された具体的な場面（行動・結果を含む）")
+    lines.append("3. **仕事での活かし方**：入社後にその強みをどう活かすかを具体的に述べる")
+    lines.append("")
+
+    lines.append("### タイプ6：強み・弱み（両方を問われる場合）")
+    lines.append("- **強み**：上記タイプ5の構成で書く")
+    lines.append("- **弱み**：弱みを正直に述べるだけでなく、**改善のために取っている具体的な行動**とセットで必ず書くこと")
+    lines.append("  （弱みを認識しているだけでなく、行動している姿勢を示すことが重要）")
+    lines.append("")
+
+    lines.append("---")
+    lines.append("")
+
+    # ── 共通指示 ──
+    lines.append("## 【共通執筆指示】")
+    lines.append("")
+
     lines.append("### 参考ESの使い方")
     lines.append("- 参考ESは**構成・熱量・文体の参考**としてのみ活用してください。")
     lines.append("- フレーズや表現を流用・丸写しすることは**絶対に避けてください**。")
     lines.append("  （採用担当者はESを大量に読んでおり、類似表現はすぐに見抜かれます。）")
-
     lines.append("")
+
     lines.append("### 文字数")
     lines.append(f"- 出力は**{s.char_limit}字以内**に収めてください。")
     lines.append(f"- 少なくとも指定文字数の**9割（{int(s.char_limit * 0.9)}字）以上**を使い切ること。")
-
     lines.append("")
+
     lines.append("### 出力後のセルフチェック")
     lines.append("回答を作成したら、以下の観点で確認し、問題があれば修正してください：")
     lines.append("- [ ] 文章内の数字（実績・期間・母数）に矛盾・不整合がないか")
     lines.append(f"- [ ] 文字数が指定の9割（{int(s.char_limit * 0.9)}字）以上あるか")
-    lines.append("- [ ] 「なぜこの職種か」が文章中に明示されているか")
-    lines.append("- [ ] 締めの文が「〜を知りたい」「〜に貢献できればと思います」などの**受け身・願望表現**になっていないか")
+    lines.append("- [ ] 締めの文が受け身・願望表現（「〜を知りたい」「〜に貢献できればと思います」等）になっていないか")
     lines.append("- [ ] 内定者ESの表現を丸写ししていないか")
-
+    lines.append("- [ ] 弱みを書く場合、改善のための具体的な行動がセットで書かれているか")
     lines.append("")
+
     lines.append("---")
     lines.append("")
-    lines.append("上記の指示に従い、エントリーシートの回答を作成してください。")
+
+    # ── タイプ判断委任（最後に明示） ──
+    lines.append("## 【設問タイプの判断と執筆】")
+    lines.append("")
+    lines.append("上記6種類のフレームワーク（自己PR／ガクチカ／志望動機／挫折経験／強み／強み・弱み）のうち、")
+    lines.append("**この設問文が最も当てはまるタイプをあなた自身が判断した上で、該当するフレームワークに沿ってエントリーシートの回答を作成してください。**")
+    lines.append("")
+    lines.append("回答の冒頭に「【判断したタイプ：◯◯】」と一行明記してから、本文を書いてください。")
 
     return "\n".join(lines)
 
@@ -390,6 +440,11 @@ with tab_prompt:
     if warnings:
         for w in warnings:
             st.warning(f"⚠️ {w}")
+
+    if st.session_state.question:
+        guessed = guess_question_type(st.session_state.question)
+        if guessed:
+            st.info(f"参考：おそらく **{guessed}** タイプと思われます（最終判断はClaudeに委ねます）")
 
     if st.button("🚀 プロンプトを生成", type="primary", use_container_width=True):
         st.session_state["generated_prompt"] = build_prompt()
