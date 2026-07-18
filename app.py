@@ -401,13 +401,6 @@ with tab_prompt:
         st.success(f"プロンプトが生成されました（{char_count:,}文字）")
         st.caption("下のテキストをすべてコピーして、Claude.ai のチャット画面に貼り付けてください。")
 
-        st.text_area(
-            "生成されたプロンプト",
-            value=prompt_text,
-            height=500,
-            key="prompt_display",
-        )
-
         st.code(prompt_text, language=None)
 
         st.info("💡 上のコードブロック右上のコピーアイコンをクリックすると全文をコピーできます。")
