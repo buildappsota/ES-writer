@@ -393,77 +393,169 @@ def build_prompt() -> str:
 
 
 # ════════════════════════════════════════════════════════════════════
-# UI
+# グローバル CSS
 # ════════════════════════════════════════════════════════════════════
-st.title("✏️ ESプロンプトビルダー")
-st.caption("入力した情報をもとに、Claude.ai に貼り付けられる完成プロンプトを生成します。AI API への接続は一切行いません。")
+st.markdown("""
+<style>
+#MainMenu, footer, header {visibility: hidden;}
+
+/* タブ */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 4px;
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 0;
+}
+.stTabs [data-baseweb="tab"] {
+    padding: 8px 20px;
+    font-weight: 500;
+    color: #6c757d;
+    border-radius: 6px 6px 0 0;
+}
+.stTabs [aria-selected="true"] {
+    color: #1a1a2e;
+    border-bottom: 2px solid #1a1a2e;
+}
+
+/* ボタン全般 */
+.stButton > button {
+    border-radius: 6px;
+    font-weight: 500;
+    transition: opacity 0.15s;
+}
+.stButton > button:hover { opacity: 0.85; }
+
+/* 入力フィールド */
+.stTextInput > div > div > input,
+.stTextArea > div > div > textarea,
+.stNumberInput > div > div > input {
+    border-radius: 6px;
+    border-color: #dee2e6;
+}
+
+/* expander */
+details summary {
+    font-weight: 600;
+    color: #1a1a2e;
+}
+
+/* セクション見出し */
+.section-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #868e96;
+    margin: 20px 0 6px;
+}
+
+/* 強みチップ */
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 12px; }
+.chip {
+    display: inline-block;
+    background: #eef2ff;
+    color: #3b5bdb;
+    border: 1px solid #c5d0fa;
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: 0.88rem;
+    font-weight: 500;
+}
+
+/* 生成結果バナー */
+.prompt-meta {
+    background: #f8f9fa;
+    border-left: 3px solid #1a1a2e;
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+    color: #495057;
+}
+
+/* チェック結果行 */
+.check-ok  { color: #2f9e44; font-weight: 500; }
+.check-warn { color: #e67700; font-weight: 500; }
+</style>
+""", unsafe_allow_html=True)
+
+
+# ════════════════════════════════════════════════════════════════════
+# ヘッダー
+# ════════════════════════════════════════════════════════════════════
+st.markdown("## ESプロンプトビルダー")
+st.caption("入力情報を整形し、Claude.ai に貼り付けられるプロンプトを生成します。このアプリ内からAIは呼び出しません。")
 
 tab_profile, tab_application, tab_prompt, tab_history = st.tabs([
-    "👤 プロフィール", "🏢 応募情報", "📋 プロンプト生成", "📊 使用履歴"
+    "プロフィール", "応募情報", "プロンプト生成", "使用履歴"
 ])
 
 
 # ════════ TAB 1：プロフィール ═══════════════════════════════════════
 with tab_profile:
-    st.subheader("基本情報")
+
+    # ── 基本情報 ──────────────────────────────────────────────────
+    st.markdown('<p class="section-label">基本情報</p>', unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
-        st.session_state.name = st.text_input("氏名", value=st.session_state.name, placeholder="山田 太郎")
+        st.session_state.name = st.text_input("氏名", value=st.session_state.name, placeholder="山田 太郎", label_visibility="collapsed")
+        st.caption("氏名")
     with col2:
         st.session_state.university = st.text_input(
-            "大学・学部・学年", value=st.session_state.university, placeholder="〇〇大学 〇〇学部 〇〇学科 3年"
+            "大学・学部・学年", value=st.session_state.university,
+            placeholder="〇〇大学 〇〇学部 3年", label_visibility="collapsed"
         )
+        st.caption("大学・学部・学年")
 
-    st.divider()
-
-    st.subheader("自己PRの軸となる強み")
-    st.caption("強みをひとつずつ追加します。")
-
-    new_strength = st.text_input("強みを入力して追加", key="new_strength_input", placeholder="例：課題発見力")
-    if st.button("＋ 追加", key="add_strength"):
-        val = st.session_state.new_strength_input.strip()
-        if val and val not in st.session_state.strengths:
-            st.session_state.strengths.append(val)
-            st.rerun()
+    # ── 強み ──────────────────────────────────────────────────────
+    st.markdown('<p class="section-label">自己PRの軸となる強み</p>', unsafe_allow_html=True)
 
     if st.session_state.strengths:
-        cols = st.columns(min(len(st.session_state.strengths), 5))
-        to_remove = None
-        for i, s_val in enumerate(st.session_state.strengths):
-            with cols[i % 5]:
-                if st.button(f"✕ {s_val}", key=f"del_strength_{i}"):
-                    to_remove = i
-        if to_remove is not None:
-            st.session_state.strengths.pop(to_remove)
-            st.rerun()
-    else:
-        st.info("強みがまだ登録されていません。")
+        chips = "".join(f'<span class="chip">{s}</span>' for s in st.session_state.strengths)
+        st.markdown(f'<div class="chip-row">{chips}</div>', unsafe_allow_html=True)
 
-    st.divider()
+    add_col, btn_col = st.columns([4, 1])
+    with add_col:
+        new_strength = st.text_input("強みを追加", key="new_strength_input",
+            placeholder="例：課題発見力", label_visibility="collapsed")
+    with btn_col:
+        if st.button("追加", key="add_strength", use_container_width=True):
+            val = st.session_state.new_strength_input.strip()
+            if val and val not in st.session_state.strengths:
+                st.session_state.strengths.append(val)
+                st.rerun()
 
-    st.subheader("ガクチカ（学生時代に力を入れたこと）")
-    st.caption("エピソードを複数登録できます。5項目に分けて入力してください。")
+    if st.session_state.strengths:
+        del_col, _ = st.columns([2, 3])
+        with del_col:
+            to_remove = st.selectbox("削除", ["（削除する強みを選択）"] + st.session_state.strengths,
+                key="strength_to_remove", label_visibility="collapsed")
+        if to_remove != "（削除する強みを選択）":
+            if st.button("削除", key="do_remove_strength"):
+                st.session_state.strengths.remove(to_remove)
+                st.rerun()
+
+    # ── ガクチカ ───────────────────────────────────────────────────
+    st.markdown('<p class="section-label">ガクチカ（学生時代に力を入れたこと）</p>', unsafe_allow_html=True)
 
     for i, ep in enumerate(st.session_state.gakuchikas):
         if "action_steps" not in ep:
             ep["action_steps"] = [{"text": ep.pop("action", ""), "actor": "自分"}]
 
-        with st.expander(f"エピソード {i + 1}", expanded=(i == 0)):
+        summary = ep.get("situation", "")[:30] or "（未入力）"
+        with st.expander(f"エピソード {i + 1}　{summary}", expanded=(i == 0)):
             ep["situation"] = st.text_area("状況", value=ep.get("situation", ""),
-                placeholder="例：大学1年から所属するテニスサークルで副代表を務めた。", key=f"ep_situation_{i}", height=80)
+                placeholder="例：テニスサークルで副代表を務めた。", key=f"ep_situation_{i}", height=72)
             ep["challenge"] = st.text_area("課題", value=ep.get("challenge", ""),
-                placeholder="例：部員の練習参加率が低下し、大会成績が3年ぶりに地区最下位になった。", key=f"ep_challenge_{i}", height=80)
+                placeholder="例：練習参加率が低下し、大会成績が地区最下位になった。", key=f"ep_challenge_{i}", height=72)
 
-            st.markdown("**行動**（時系列順に箇条書きで入力）")
-            st.caption("各行動について「自分が行ったか / 他者が行ったか」を選択してください。")
-
+            st.caption("行動　※時系列順に入力。各行で行為者を選んでください。")
             step_to_remove = None
             for j, step in enumerate(ep["action_steps"]):
                 c_text, c_actor, c_del = st.columns([5, 2, 1])
                 with c_text:
                     step["text"] = st.text_input(
-                        f"行動 {j + 1}", value=step.get("text", ""),
-                        placeholder="例：部員に個別ヒアリングを実施した",
+                        f"行動{j+1}", value=step.get("text", ""),
+                        placeholder=f"行動 {j + 1}",
                         key=f"ep_step_text_{i}_{j}", label_visibility="collapsed"
                     )
                 with c_actor:
@@ -473,222 +565,209 @@ with tab_profile:
                         key=f"ep_step_actor_{i}_{j}", label_visibility="collapsed"
                     )
                 with c_del:
-                    if len(ep["action_steps"]) > 1:
-                        if st.button("✕", key=f"del_step_{i}_{j}"):
-                            step_to_remove = j
+                    if len(ep["action_steps"]) > 1 and st.button("✕", key=f"del_step_{i}_{j}"):
+                        step_to_remove = j
             if step_to_remove is not None:
                 ep["action_steps"].pop(step_to_remove)
                 st.rerun()
-
             if st.button("＋ 行動を追加", key=f"add_step_{i}"):
                 ep["action_steps"].append({"text": "", "actor": "自分"})
                 st.rerun()
 
             ep["result"] = st.text_area("結果（数字を含めて）", value=ep.get("result", ""),
-                placeholder="例：3か月で参加率が42%→78%に向上。翌年の地区大会で準優勝。", key=f"ep_result_{i}", height=80)
+                placeholder="例：参加率 42%→78%。翌年の地区大会で準優勝。", key=f"ep_result_{i}", height=72)
             ep["learning"] = st.text_area("学び", value=ep.get("learning", ""),
-                placeholder="例：課題の根本を掘り下げてから施策を設計することの重要性を学んだ。", key=f"ep_learning_{i}", height=80)
+                placeholder="例：課題の根本を掘り下げてから施策を設計することの重要性を学んだ。", key=f"ep_learning_{i}", height=72)
 
             if len(st.session_state.gakuchikas) > 1:
                 if st.button("このエピソードを削除", key=f"del_ep_{i}"):
                     st.session_state.gakuchikas.pop(i)
                     st.rerun()
 
-    if st.button("＋ エピソードを追加"):
-        st.session_state.gakuchikas.append({"situation": "", "challenge": "", "action_steps": [{"text": "", "actor": "自分"}], "result": "", "learning": ""})
+    if st.button("＋ エピソードを追加", key="add_ep"):
+        st.session_state.gakuchikas.append({
+            "situation": "", "challenge": "",
+            "action_steps": [{"text": "", "actor": "自分"}],
+            "result": "", "learning": ""
+        })
         st.rerun()
 
-    st.divider()
-
-    st.subheader("実績の数字")
-    st.caption("Before / After・期間・母数のセットで登録します。")
+    # ── 実績の数字 ─────────────────────────────────────────────────
+    st.markdown('<p class="section-label">実績の数字</p>', unsafe_allow_html=True)
 
     for i, ach in enumerate(st.session_state.achievements):
-        with st.expander(f"実績 {i + 1}", expanded=(i == 0)):
+        label = f"{ach.get('before','')} → {ach.get('after','')}" if ach.get("before") else f"実績 {i+1}（未入力）"
+        with st.expander(label, expanded=(i == 0)):
             c1, c2 = st.columns(2)
             with c1:
-                ach["before"] = st.text_input("Before", value=ach.get("before", ""), placeholder="例：売上 月50万円", key=f"ach_before_{i}")
+                ach["before"] = st.text_input("Before", value=ach.get("before", ""),
+                    placeholder="例：参加率 42%", key=f"ach_before_{i}")
             with c2:
-                ach["after"] = st.text_input("After", value=ach.get("after", ""), placeholder="例：売上 月120万円", key=f"ach_after_{i}")
+                ach["after"] = st.text_input("After", value=ach.get("after", ""),
+                    placeholder="例：参加率 78%", key=f"ach_after_{i}")
             c3, c4 = st.columns(2)
             with c3:
-                ach["period"] = st.text_input("期間", value=ach.get("period", ""), placeholder="例：6か月", key=f"ach_period_{i}")
+                ach["period"] = st.text_input("期間", value=ach.get("period", ""),
+                    placeholder="例：3か月", key=f"ach_period_{i}")
             with c4:
-                ach["scale"] = st.text_input("母数", value=ach.get("scale", ""), placeholder="例：部員30人中", key=f"ach_scale_{i}")
+                ach["scale"] = st.text_input("母数", value=ach.get("scale", ""),
+                    placeholder="例：部員30人中", key=f"ach_scale_{i}")
             if len(st.session_state.achievements) > 1:
                 if st.button("この実績を削除", key=f"del_ach_{i}"):
                     st.session_state.achievements.pop(i)
                     st.rerun()
 
-    if st.button("＋ 実績を追加"):
+    if st.button("＋ 実績を追加", key="add_ach"):
         st.session_state.achievements.append({"before": "", "after": "", "period": "", "scale": ""})
         st.rerun()
 
-    st.divider()
-
-    st.subheader("プロフィールの保存・読み込み")
+    # ── 保存・読み込み ─────────────────────────────────────────────
+    st.markdown('<p class="section-label">プロフィールの保存・読み込み</p>', unsafe_allow_html=True)
     col_save, col_load = st.columns(2)
-
     with col_save:
-        profile_json = json.dumps(profile_to_dict(), ensure_ascii=False, indent=2)
         st.download_button(
-            label="💾 プロフィールを保存（JSONダウンロード）",
-            data=profile_json,
-            file_name="es_profile.json",
-            mime="application/json",
+            label="JSON として保存",
+            data=json.dumps(profile_to_dict(), ensure_ascii=False, indent=2),
+            file_name="es_profile.json", mime="application/json",
             use_container_width=True,
         )
-
     with col_load:
-        uploaded = st.file_uploader("📂 プロフィールを読み込む（JSON）", type="json", key="profile_upload")
+        uploaded = st.file_uploader("JSONを読み込む", type="json", key="profile_upload",
+            label_visibility="collapsed")
         if uploaded is not None:
             try:
-                data = json.load(uploaded)
-                load_profile(data)
-                st.success("プロフィールを読み込みました。")
+                load_profile(json.load(uploaded))
+                st.success("読み込みました。")
                 st.rerun()
             except Exception as e:
-                st.error(f"読み込みに失敗しました：{e}")
+                st.error(f"読み込みエラー：{e}")
 
 
 # ════════ TAB 2：応募情報 ═══════════════════════════════════════════
 with tab_application:
-    st.subheader("応募企業・設問の情報")
 
+    st.markdown('<p class="section-label">企業・設問</p>', unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
-        st.session_state.company = st.text_input("企業名", value=st.session_state.company, placeholder="例：株式会社〇〇")
+        st.session_state.company = st.text_input("企業名", value=st.session_state.company,
+            placeholder="例：株式会社〇〇")
     with col2:
-        st.session_state.industry = st.text_input(
-            "業界・職種", value=st.session_state.industry, placeholder="例：IT／コンサルティング業界・法人営業職"
-        )
+        st.session_state.industry = st.text_input("業界・職種", value=st.session_state.industry,
+            placeholder="例：IT業界・法人営業職")
 
-    st.session_state.question = st.text_area(
-        "ES設問文", value=st.session_state.question,
-        placeholder="例：学生時代に最も力を入れたことを教えてください。", height=100,
-    )
+    st.session_state.question = st.text_area("ES設問文", value=st.session_state.question,
+        placeholder="例：学生時代に最も力を入れたことを教えてください。", height=90)
 
     st.session_state.char_limit = st.number_input(
         "文字数指定（字以内）", min_value=50, max_value=3000,
         value=st.session_state.char_limit, step=50,
     )
 
-    st.divider()
-    st.subheader("参照する内定者ES")
-    st.caption("内定者ESのテキストを貼り付けてください。構成・熱量の参考としてプロンプトに含めます。")
+    with st.expander("参照する内定者ES（任意）"):
+        st.caption("構成・熱量・文体の参考用。フレーズの丸写し禁止の指示はプロンプトに自動で含まれます。")
+        for i, ref in enumerate(st.session_state.reference_es_list):
+            st.session_state.reference_es_list[i] = st.text_area(
+                f"内定者ES {i + 1}", value=ref, height=130,
+                placeholder="内定者のESをここに貼り付けてください。", key=f"ref_es_{i}",
+            )
+            if len(st.session_state.reference_es_list) > 1:
+                if st.button("削除", key=f"del_ref_{i}"):
+                    st.session_state.reference_es_list.pop(i)
+                    st.rerun()
+        if st.button("＋ 追加", key="add_ref"):
+            st.session_state.reference_es_list.append("")
+            st.rerun()
 
-    for i, ref in enumerate(st.session_state.reference_es_list):
-        st.session_state.reference_es_list[i] = st.text_area(
-            f"内定者ES {i + 1}", value=ref, height=150,
-            placeholder="内定者のESをここに貼り付けてください。", key=f"ref_es_{i}",
+    with st.expander("企業研究メモ・キーワード（任意）"):
+        st.caption("OB訪問メモ、企業特有のキーワード、ニュースなど自由に記入。プロンプトにそのまま含まれます。")
+        st.session_state.research_notes = st.text_area(
+            "メモ", value=st.session_state.research_notes, height=110,
+            placeholder="例：「共創」「DX推進」 / OB談：〇〇という価値観を重視 / 中計でXX事業強化中",
+            label_visibility="collapsed",
         )
-        if len(st.session_state.reference_es_list) > 1:
-            if st.button("この例文を削除", key=f"del_ref_{i}"):
-                st.session_state.reference_es_list.pop(i)
-                st.rerun()
-
-    if st.button("＋ 内定者ESを追加"):
-        st.session_state.reference_es_list.append("")
-        st.rerun()
-
-    st.divider()
-    st.subheader("企業研究メモ・キーワード（任意）")
-    st.session_state.research_notes = st.text_area(
-        "企業が使うキーワード、OB/OG訪問メモ、ニュースメモなど",
-        value=st.session_state.research_notes, height=120,
-        placeholder="例：「共創」「社会インフラ」「DX推進」 / 中期経営計画でXX事業を強化中 / OB談：〇〇という価値観を大切にしている",
-    )
 
 
 # ════════ TAB 3：プロンプト生成 ═════════════════════════════════════
 with tab_prompt:
-    st.subheader("プロンプトを生成する")
 
-    warnings_list = []
-    if not st.session_state.name:
-        warnings_list.append("氏名が未入力です（プロフィールタブ）")
-    if not st.session_state.question:
-        warnings_list.append("ES設問文が未入力です（応募情報タブ）")
-    if not st.session_state.company:
-        warnings_list.append("企業名が未入力です（応募情報タブ）")
+    # ── ステータス ──────────────────────────────────────────────────
+    missing = []
+    if not st.session_state.name:     missing.append("氏名")
+    if not st.session_state.company:  missing.append("企業名")
+    if not st.session_state.question: missing.append("ES設問文")
 
-    for w in warnings_list:
-        st.warning(f"⚠️ {w}")
-
-    if st.session_state.question:
+    if missing:
+        st.warning(f"未入力：{' / '.join(missing)}")
+    elif st.session_state.question:
         guessed = guess_question_type(st.session_state.question)
         if guessed:
-            st.info(f"参考：おそらく **{guessed}** タイプと思われます（最終判断はClaudeに委ねます）")
+            st.markdown(
+                f'<p style="color:#495057;font-size:0.9rem;">参考：おそらく <strong>{guessed}</strong> タイプ（最終判断はClaudeに委ねます）</p>',
+                unsafe_allow_html=True
+            )
 
-    if st.button("🚀 プロンプトを生成", type="primary", use_container_width=True):
+    # ── 生成ボタン ─────────────────────────────────────────────────
+    if st.button("プロンプトを生成", type="primary", use_container_width=True):
         st.session_state["generated_prompt"] = build_prompt()
         if st.session_state.company:
             save_history(build_history_entry())
 
+    # ── 生成結果 ───────────────────────────────────────────────────
     if st.session_state.get("generated_prompt"):
         prompt_text = st.session_state["generated_prompt"]
-        st.success(f"プロンプトが生成されました（{len(prompt_text):,}文字）")
-        st.caption("下のコードブロック右上のコピーアイコンをクリックして全文コピーし、Claude.ai に貼り付けてください。")
+        st.markdown(
+            f'<div class="prompt-meta">生成完了 — {len(prompt_text):,} 文字　'
+            '右上のコピーボタンで全文コピー → <a href="https://claude.ai/" target="_blank">Claude.ai</a> に貼り付けて送信</div>',
+            unsafe_allow_html=True
+        )
         st.code(prompt_text, language=None)
 
-        st.divider()
-        st.subheader("使い方")
-        st.markdown("""
-1. 上のプロンプトを **全文コピー** します
-2. [Claude.ai](https://claude.ai/) を開き、新しいチャットを始めます
-3. プロンプトを貼り付けて送信します
-4. Claudeが返答した内容を確認し、必要に応じて「〇〇の部分をもっと具体的に」などと追加指示してブラッシュアップします
-""")
-
-    st.divider()
-    st.subheader("📝 セルフチェック")
-    st.caption("ClaudeのESを貼り付けると、文字数・受け身表現・実績数字の整合をルールベースでチェックします。")
-
-    es_input = st.text_area(
-        "生成されたESの本文をここに貼り付けてください",
-        height=200,
-        placeholder="Claudeが出力したESの本文をここに貼り付けてください…",
-        key="es_check_input",
-    )
-
-    if st.button("チェックを実行", key="run_check"):
-        if es_input.strip():
-            results = check_es_text(es_input.strip(), st.session_state.char_limit, st.session_state.achievements)
-            for r in results:
-                icon = "✅" if r["status"] == "ok" else "⚠️"
-                if r["status"] == "ok":
-                    st.success(f"{icon} **{r['label']}**：{r['message']}")
-                else:
-                    st.warning(f"{icon} **{r['label']}**：{r['message']}")
-        else:
-            st.error("ES本文を入力してください。")
+    # ── セルフチェック ─────────────────────────────────────────────
+    with st.expander("ES セルフチェック（生成後に使用）"):
+        st.caption("ClaudeのESを貼ると、文字数・受け身表現・実績数字の整合をルールベースでチェックします。")
+        es_input = st.text_area("ES本文を貼り付け", height=180,
+            placeholder="Claudeが出力したESの本文をここに貼り付けてください…",
+            key="es_check_input", label_visibility="collapsed")
+        if st.button("チェックを実行", key="run_check"):
+            if es_input.strip():
+                for r in check_es_text(es_input.strip(), st.session_state.char_limit, st.session_state.achievements):
+                    cls = "check-ok" if r["status"] == "ok" else "check-warn"
+                    icon = "✓" if r["status"] == "ok" else "⚠"
+                    st.markdown(
+                        f'<p class="{cls}">{icon} <strong>{r["label"]}</strong>：{r["message"]}</p>',
+                        unsafe_allow_html=True
+                    )
+            else:
+                st.error("ES本文を入力してください。")
 
 
 # ════════ TAB 4：使用履歴 ═══════════════════════════════════════════
 with tab_history:
-    st.subheader("使用履歴")
+    st.markdown('<p class="section-label">使用履歴</p>', unsafe_allow_html=True)
     st.caption("プロンプト生成のたびに自動記録されます（企業名が入力されている場合のみ）。")
 
     history = load_history()
 
     if not history:
-        st.info("履歴はまだありません。プロンプトを生成すると自動記録されます。")
+        st.info("まだ履歴がありません。プロンプトを生成すると自動で記録されます。")
     else:
-        if st.button("🗑️ 履歴をすべて削除", key="clear_history"):
+        if st.button("すべて削除", key="clear_history"):
             HISTORY_FILE.unlink(missing_ok=True)
-            st.success("履歴を削除しました。")
+            st.success("削除しました。")
             st.rerun()
 
         for entry in reversed(history):
-            with st.expander(f"📌 {entry.get('timestamp', '')}　{entry.get('company', '')}　「{entry.get('question', '')}」", expanded=False):
-                st.markdown(f"**企業名：** {entry.get('company', '')}")
-                st.markdown(f"**設問：** {entry.get('question', '')}")
-                st.markdown(f"**文字数：** {entry.get('char_limit', '')}字以内")
-                if entry.get("used_gakuchikas"):
-                    st.markdown("**使用したガクチカ：**")
-                    for ep in entry["used_gakuchikas"]:
-                        st.markdown(f"- {ep}…")
-                if entry.get("used_numbers"):
-                    st.markdown(f"**使用した数字：** {' / '.join(entry['used_numbers'])}")
-                if entry.get("used_keywords"):
-                    st.markdown(f"**使用したキーワード：** {' / '.join(entry['used_keywords'])}")
+            label = f"{entry.get('timestamp', '')}　{entry.get('company', '')}　「{entry.get('question', '')}」"
+            with st.expander(label):
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.markdown(f"**企業名**　{entry.get('company', '')}")
+                    st.markdown(f"**文字数**　{entry.get('char_limit', '')}字以内")
+                    if entry.get("used_numbers"):
+                        st.markdown(f"**使用した数字**　{' / '.join(entry['used_numbers'])}")
+                with c2:
+                    st.markdown(f"**設問**　{entry.get('question', '')}")
+                    if entry.get("used_gakuchikas"):
+                        st.markdown("**ガクチカ**　" + " / ".join(f"{e}…" for e in entry["used_gakuchikas"]))
+                    if entry.get("used_keywords"):
+                        st.markdown(f"**キーワード**　{' / '.join(entry['used_keywords'])}")
