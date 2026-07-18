@@ -1,9 +1,28 @@
 import json
+import re
+from datetime import datetime
+from pathlib import Path
 import streamlit as st
 
 st.set_page_config(page_title="ESプロンプトビルダー", page_icon="✏️", layout="wide")
 
-# ── セッション初期化 ──────────────────────────────────────────────
+HISTORY_FILE = Path(__file__).parent / "es_history.json"
+
+PASSIVE_PATTERNS = [
+    "を知りたい", "を確かめたい", "を学びたい", "を感じたい",
+    "に貢献できればと思います", "と思っています", "できればと思います",
+    "したいと思います", "いければと思います",
+]
+
+QUESTION_TYPE_HINTS: list[tuple[list[str], str]] = [
+    (["志望", "なぜ", "理由", "動機", "選んだ"], "志望動機"),
+    (["挫折", "失敗", "壁", "困難", "乗り越え", "つらかった", "苦労"], "挫折経験"),
+    (["弱み", "短所", "苦手", "長所と短所", "強みと弱み"], "強み・弱み"),
+    (["強み", "長所", "得意", "自己PR", "あなたらしさ"], "自己PR"),
+    (["学生時代", "ガクチカ", "力を入れた", "打ち込ん", "頑張った", "取り組ん"], "ガクチカ"),
+]
+
+# ── セッション初期化 ────────────────────────────────────────────────
 def init_session():
     defaults = {
         "name": "",
@@ -24,8 +43,8 @@ def init_session():
 
 init_session()
 
-# ── ヘルパー ──────────────────────────────────────────────────────
-def profile_to_dict():
+# ── プロフィール ────────────────────────────────────────────────────
+def profile_to_dict() -> dict:
     return {
         "name": st.session_state.name,
         "university": st.session_state.university,
@@ -41,21 +60,112 @@ def load_profile(data: dict):
     st.session_state.strengths = data.get("strengths", [])
     st.session_state.achievements = data.get("achievements", [{"before": "", "after": "", "period": "", "scale": ""}])
 
-QUESTION_TYPE_HINTS: list[tuple[list[str], str]] = [
-    (["志望", "なぜ", "理由", "動機", "選んだ"], "志望動機"),
-    (["挫折", "失敗", "壁", "困難", "乗り越え", "つらかった", "苦労"], "挫折経験"),
-    (["弱み", "短所", "苦手", "長所と短所", "強みと弱み"], "強み・弱み"),
-    (["強み", "長所", "得意", "自己PR", "あなたらしさ"], "自己PR"),
-    (["学生時代", "ガクチカ", "力を入れた", "打ち込ん", "頑張った", "取り組ん"], "ガクチカ"),
-]
+# ── 使用履歴 ────────────────────────────────────────────────────────
+def load_history() -> list:
+    if not HISTORY_FILE.exists():
+        return []
+    try:
+        return json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return []
 
+def save_history(entry: dict):
+    history = load_history()
+    history.append(entry)
+    HISTORY_FILE.write_text(json.dumps(history, ensure_ascii=False, indent=2), encoding="utf-8")
+
+def build_history_entry() -> dict:
+    s = st.session_state
+    used_gakuchikas = [
+        g.get("situation", "")[:40] for g in s.gakuchikas
+        if any(g.get(k) for k in ("situation", "challenge", "action", "result", "learning"))
+    ]
+    used_numbers = []
+    for a in s.achievements:
+        if a.get("before"):
+            used_numbers.append(a["before"])
+        if a.get("after"):
+            used_numbers.append(a["after"])
+    keywords = [kw.strip() for kw in re.split(r"[、,\s/／]+", s.research_notes) if kw.strip()][:10]
+    return {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "company": s.company,
+        "question": s.question[:60],
+        "char_limit": s.char_limit,
+        "used_gakuchikas": used_gakuchikas,
+        "used_numbers": used_numbers,
+        "used_keywords": keywords,
+    }
+
+# ── ルールベース セルフチェック ────────────────────────────────────
+def check_es_text(es_text: str, char_limit: int, achievements: list) -> list[dict]:
+    results = []
+
+    # 文字数充足率
+    fill_rate = len(es_text) / char_limit * 100 if char_limit else 0
+    threshold = int(char_limit * 0.9)
+    if fill_rate < 90:
+        results.append({
+            "status": "warn",
+            "label": "文字数",
+            "message": f"{len(es_text)}/{char_limit}字（充足率 {fill_rate:.1f}%） — 9割（{threshold}字）未満です",
+        })
+    else:
+        results.append({
+            "status": "ok",
+            "label": "文字数",
+            "message": f"{len(es_text)}/{char_limit}字（充足率 {fill_rate:.1f}%）",
+        })
+
+    # 受け身表現の検出
+    found = [p for p in PASSIVE_PATTERNS if p in es_text]
+    if found:
+        results.append({
+            "status": "warn",
+            "label": "受け身表現",
+            "message": f"受け身・願望表現が含まれています：{'、'.join(found)}",
+        })
+    else:
+        results.append({
+            "status": "ok",
+            "label": "受け身表現",
+            "message": "受け身・願望表現は検出されませんでした",
+        })
+
+    # 実績数字との整合チェック
+    number_issues = []
+    for a in achievements:
+        for field in ("before", "after"):
+            val = a.get(field, "").strip()
+            if not val:
+                continue
+            nums = re.findall(r"\d+", val)
+            for n in nums:
+                if n not in es_text:
+                    number_issues.append(f"「{val}」の数値 {n}")
+    if number_issues:
+        results.append({
+            "status": "warn",
+            "label": "実績数字",
+            "message": "本文中に見当たらない登録数値があります：" + "／".join(number_issues[:5]),
+        })
+    else:
+        results.append({
+            "status": "ok",
+            "label": "実績数字",
+            "message": "登録された実績数値はすべて本文中に確認できました（または実績未登録）",
+        })
+
+    return results
+
+# ── 設問タイプ推定 ──────────────────────────────────────────────────
 def guess_question_type(question: str) -> str | None:
     for keywords, label in QUESTION_TYPE_HINTS:
         if any(kw in question for kw in keywords):
             return label
     return None
 
-
+# ── プロンプト生成 ──────────────────────────────────────────────────
 def build_prompt() -> str:
     s = st.session_state
     lines = []
@@ -63,15 +173,13 @@ def build_prompt() -> str:
     lines.append("あなたは就活エントリーシートの添削・執筆の専門家です。以下の情報をもとに、エントリーシートの回答を作成してください。")
     lines.append("")
 
-    # ── 基本情報 ──
+    # ── プロフィール ──
     lines.append("## 【応募者プロフィール】")
     lines.append(f"- 氏名：{s.name}")
     lines.append(f"- 所属：{s.university}")
-
     if s.strengths:
         lines.append(f"- 自己PRの軸となる強み：{' / '.join(s.strengths)}")
 
-    # ── 実績数字 ──
     valid_achievements = [a for a in s.achievements if a.get("before") or a.get("after")]
     if valid_achievements:
         lines.append("")
@@ -86,23 +194,15 @@ def build_prompt() -> str:
                 parts.append(f"母数：{a['scale']}")
             lines.append(f"  実績{i}：{' ／ '.join(parts)}")
 
-    # ── ガクチカ ──
     valid_gakuchikas = [g for g in s.gakuchikas if any(g.get(k) for k in ("situation", "challenge", "action", "result", "learning"))]
     if valid_gakuchikas:
         lines.append("")
         lines.append("### 学生時代に力を入れたこと（ガクチカ）エピソード")
         for i, g in enumerate(valid_gakuchikas, 1):
             lines.append(f"  【エピソード{i}】")
-            if g.get("situation"):
-                lines.append(f"    状況：{g['situation']}")
-            if g.get("challenge"):
-                lines.append(f"    課題：{g['challenge']}")
-            if g.get("action"):
-                lines.append(f"    行動：{g['action']}")
-            if g.get("result"):
-                lines.append(f"    結果：{g['result']}")
-            if g.get("learning"):
-                lines.append(f"    学び：{g['learning']}")
+            for key, label in [("situation", "状況"), ("challenge", "課題"), ("action", "行動"), ("result", "結果"), ("learning", "学び")]:
+                if g.get(key):
+                    lines.append(f"    {label}：{g[key]}")
 
     lines.append("")
     lines.append("---")
@@ -132,7 +232,7 @@ def build_prompt() -> str:
     lines.append("---")
     lines.append("")
 
-    # ── 執筆フレームワーク定義（6種類すべて埋め込む） ──
+    # ── フレームワーク定義（6種類） ──
     lines.append("## 【執筆フレームワーク定義】")
     lines.append("")
     lines.append("以下に6種類のフレームワークを定義します。どのタイプにも対応できるよう、すべて参照してください。")
@@ -156,8 +256,8 @@ def build_prompt() -> str:
     lines.append("1. **原体験**：志望の原点となった具体的な経験や出来事")
     lines.append("2. **一般化**：その経験から得た価値観・信念・問い")
     lines.append("3. **企業固有の取り組みとの接続**：なぜ他社ではなくこの企業なのか（事業・理念・具体施策を根拠に）")
-    lines.append("4. **なぜこの職種か**：志望職種でなければならない理由を明示する")
-    lines.append("5. **締め（能動的な行動宣言）**：入社後に何を成し遂げるかを主体的な言葉で締めくくる（「〜したい」「〜と思います」などの受け身・願望表現で終わらないこと）")
+    lines.append("4. **なぜこの職種か**：志望職種でなければならない理由を明示する（隣接職種ではなくこの職種を選ぶ理由）")
+    lines.append("5. **締め（能動的な行動宣言）**：入社後に何を成し遂げるかを主体的な言葉で締めくくる")
     lines.append("")
 
     lines.append("### タイプ4：挫折経験")
@@ -176,9 +276,43 @@ def build_prompt() -> str:
     lines.append("### タイプ6：強み・弱み（両方を問われる場合）")
     lines.append("- **強み**：上記タイプ5の構成で書く")
     lines.append("- **弱み**：弱みを正直に述べるだけでなく、**改善のために取っている具体的な行動**とセットで必ず書くこと")
-    lines.append("  （弱みを認識しているだけでなく、行動している姿勢を示すことが重要）")
+    lines.append("")
+    lines.append("---")
     lines.append("")
 
+    # ── ミクロテクニック（Section 3） ──
+    lines.append("## 【文章構築のミクロテクニック】")
+    lines.append("")
+    lines.append("以下のルールをすべて守って文章を書いてください。")
+    lines.append("")
+
+    lines.append("### 結論ファースト（PREP法）")
+    lines.append("結論 → 理由 → エピソード → 結論 の順で書くこと。")
+    lines.append("")
+
+    lines.append("### 一文一義")
+    lines.append("1文に情報を詰め込みすぎないこと。読みやすさを最優先にすること。")
+    lines.append("")
+
+    lines.append("### 数字化のルール")
+    lines.append("実績を書く際は「Before → After、期間、母数」をセットで書くこと。")
+    lines.append("上記【応募者プロフィール】に記載された実績の数字を使用し、存在しない数値を創作しないこと。")
+    lines.append("")
+
+    lines.append("### 受け身表現の禁止")
+    lines.append("「〜を知りたい」「〜を確かめたい」で文を終わらせてはいけません。")
+    lines.append("知った後にどう行動するか、どう志望度が高まるかまで書くこと。")
+    lines.append("")
+
+    lines.append("### 企業固有ワードの使い方")
+    lines.append("企業研究で得たキーワードは **1〜2箇所だけ** 使用し、自分の経験の言葉に自然に溶かして使うこと。")
+    lines.append("3箇所以上使うと不自然になるため避けること。")
+    lines.append("")
+
+    lines.append("### 情報の創作禁止")
+    lines.append("固有名詞・数値は、上記【応募者プロフィール】と【応募情報】に記載された情報の範囲内でのみ使用すること。")
+    lines.append("入力されていない情報（実在しない数値・経験・固有名詞）を創作してはいけません。")
+    lines.append("")
     lines.append("---")
     lines.append("")
 
@@ -197,19 +331,30 @@ def build_prompt() -> str:
     lines.append(f"- 少なくとも指定文字数の**9割（{int(s.char_limit * 0.9)}字）以上**を使い切ること。")
     lines.append("")
 
-    lines.append("### 出力後のセルフチェック")
-    lines.append("回答を作成したら、以下の観点で確認し、問題があれば修正してください：")
-    lines.append("- [ ] 文章内の数字（実績・期間・母数）に矛盾・不整合がないか")
-    lines.append(f"- [ ] 文字数が指定の9割（{int(s.char_limit * 0.9)}字）以上あるか")
-    lines.append("- [ ] 締めの文が受け身・願望表現（「〜を知りたい」「〜に貢献できればと思います」等）になっていないか")
-    lines.append("- [ ] 内定者ESの表現を丸写ししていないか")
-    lines.append("- [ ] 弱みを書く場合、改善のための具体的な行動がセットで書かれているか")
+    lines.append("### 文字数が足りない場合の対応順序（必ずこの順で対処すること）")
+    lines.append("1. **既存エピソードの行動・熱量を深掘りする**（最優先）：行動の具体性・工夫・感情をより詳しく書く")
+    lines.append("2. **考えの言語化を厚くする**：設問が「考え」を求めている場合、思考の過程を丁寧に展開する")
+    lines.append("3. **新しいエピソードを追加する**（最終手段）：分散しやすいため、他の手段を尽くしてから検討する")
     lines.append("")
-
     lines.append("---")
     lines.append("")
 
-    # ── タイプ判断委任（最後に明示） ──
+    # ── AI自己チェック（Section 4） ──
+    lines.append("## 【生成後の自己点検】")
+    lines.append("")
+    lines.append("回答を作成したら、以下の観点をすべて確認し、満たしていない項目があれば**修正してから最終出力**してください。")
+    lines.append("")
+    lines.append("- [ ] 「なぜこの職種か」（隣接職種ではなくこの職種を選ぶ理由）が文章中に明示されているか")
+    lines.append("- [ ] 締めの文が「〜を知りたい」「〜に貢献できればと思います」などの受け身・願望表現で終わっていないか")
+    lines.append("- [ ] 複数のエピソードを使う場合、学びの結論が毎回同じフレーズに強引に着地していないか")
+    lines.append("- [ ] 参照した内定者ESとフレーズが一字一句同じ箇所がないか")
+    lines.append(f"- [ ] 文字数が指定の9割（{int(s.char_limit * 0.9)}字）以上あるか")
+    lines.append("- [ ] 弱みを書く場合、改善のための具体的な行動がセットで書かれているか")
+    lines.append("")
+    lines.append("---")
+    lines.append("")
+
+    # ── タイプ判断委任 ──
     lines.append("## 【設問タイプの判断と執筆】")
     lines.append("")
     lines.append("上記6種類のフレームワーク（自己PR／ガクチカ／志望動機／挫折経験／強み／強み・弱み）のうち、")
@@ -226,11 +371,12 @@ def build_prompt() -> str:
 st.title("✏️ ESプロンプトビルダー")
 st.caption("入力した情報をもとに、Claude.ai に貼り付けられる完成プロンプトを生成します。AI API への接続は一切行いません。")
 
-# ── タブ ─────────────────────────────────────────────────────────
-tab_profile, tab_application, tab_prompt = st.tabs(["👤 プロフィール", "🏢 応募情報", "📋 プロンプト生成"])
+tab_profile, tab_application, tab_prompt, tab_history = st.tabs([
+    "👤 プロフィール", "🏢 応募情報", "📋 プロンプト生成", "📊 使用履歴"
+])
 
 
-# ════════ TAB 1：プロフィール ════════════════════════════════════════
+# ════════ TAB 1：プロフィール ═══════════════════════════════════════
 with tab_profile:
     st.subheader("基本情報")
     col1, col2 = st.columns(2)
@@ -243,7 +389,6 @@ with tab_profile:
 
     st.divider()
 
-    # ── 強み（タグ） ──
     st.subheader("自己PRの軸となる強み")
     st.caption("強みをひとつずつ追加します。")
 
@@ -269,37 +414,21 @@ with tab_profile:
 
     st.divider()
 
-    # ── ガクチカ ──
     st.subheader("ガクチカ（学生時代に力を入れたこと）")
     st.caption("エピソードを複数登録できます。5項目に分けて入力してください。")
 
     for i, ep in enumerate(st.session_state.gakuchikas):
         with st.expander(f"エピソード {i + 1}", expanded=(i == 0)):
-            ep["situation"] = st.text_area(
-                "状況", value=ep.get("situation", ""),
-                placeholder="例：大学1年から所属するテニスサークルで副代表を務めた。",
-                key=f"ep_situation_{i}", height=80
-            )
-            ep["challenge"] = st.text_area(
-                "課題", value=ep.get("challenge", ""),
-                placeholder="例：部員の練習参加率が低下し、大会成績が3年ぶりに地区最下位になった。",
-                key=f"ep_challenge_{i}", height=80
-            )
-            ep["action"] = st.text_area(
-                "行動", value=ep.get("action", ""),
-                placeholder="例：個別ヒアリングを実施し、初心者向け練習メニューを新設。SNS告知を週3回に増やした。",
-                key=f"ep_action_{i}", height=100
-            )
-            ep["result"] = st.text_area(
-                "結果（数字を含めて）", value=ep.get("result", ""),
-                placeholder="例：3か月で参加率が42%→78%に向上。翌年の地区大会で準優勝。",
-                key=f"ep_result_{i}", height=80
-            )
-            ep["learning"] = st.text_area(
-                "学び", value=ep.get("learning", ""),
-                placeholder="例：課題の根本を掘り下げてから施策を設計することの重要性を学んだ。",
-                key=f"ep_learning_{i}", height=80
-            )
+            ep["situation"] = st.text_area("状況", value=ep.get("situation", ""),
+                placeholder="例：大学1年から所属するテニスサークルで副代表を務めた。", key=f"ep_situation_{i}", height=80)
+            ep["challenge"] = st.text_area("課題", value=ep.get("challenge", ""),
+                placeholder="例：部員の練習参加率が低下し、大会成績が3年ぶりに地区最下位になった。", key=f"ep_challenge_{i}", height=80)
+            ep["action"] = st.text_area("行動", value=ep.get("action", ""),
+                placeholder="例：個別ヒアリングを実施し、初心者向け練習メニューを新設。SNS告知を週3回に増やした。", key=f"ep_action_{i}", height=100)
+            ep["result"] = st.text_area("結果（数字を含めて）", value=ep.get("result", ""),
+                placeholder="例：3か月で参加率が42%→78%に向上。翌年の地区大会で準優勝。", key=f"ep_result_{i}", height=80)
+            ep["learning"] = st.text_area("学び", value=ep.get("learning", ""),
+                placeholder="例：課題の根本を掘り下げてから施策を設計することの重要性を学んだ。", key=f"ep_learning_{i}", height=80)
             if len(st.session_state.gakuchikas) > 1:
                 if st.button("このエピソードを削除", key=f"del_ep_{i}"):
                     st.session_state.gakuchikas.pop(i)
@@ -311,7 +440,6 @@ with tab_profile:
 
     st.divider()
 
-    # ── 実績の数字 ──
     st.subheader("実績の数字")
     st.caption("Before / After・期間・母数のセットで登録します。")
 
@@ -338,7 +466,6 @@ with tab_profile:
 
     st.divider()
 
-    # ── 保存 / 読み込み ──
     st.subheader("プロフィールの保存・読み込み")
     col_save, col_load = st.columns(2)
 
@@ -364,33 +491,26 @@ with tab_profile:
                 st.error(f"読み込みに失敗しました：{e}")
 
 
-# ════════ TAB 2：応募情報 ════════════════════════════════════════════
+# ════════ TAB 2：応募情報 ═══════════════════════════════════════════
 with tab_application:
     st.subheader("応募企業・設問の情報")
 
     col1, col2 = st.columns(2)
     with col1:
-        st.session_state.company = st.text_input(
-            "企業名", value=st.session_state.company, placeholder="例：株式会社〇〇"
-        )
+        st.session_state.company = st.text_input("企業名", value=st.session_state.company, placeholder="例：株式会社〇〇")
     with col2:
         st.session_state.industry = st.text_input(
             "業界・職種", value=st.session_state.industry, placeholder="例：IT／コンサルティング業界・法人営業職"
         )
 
     st.session_state.question = st.text_area(
-        "ES設問文",
-        value=st.session_state.question,
-        placeholder="例：学生時代に最も力を入れたことを教えてください。",
-        height=100,
+        "ES設問文", value=st.session_state.question,
+        placeholder="例：学生時代に最も力を入れたことを教えてください。", height=100,
     )
 
     st.session_state.char_limit = st.number_input(
-        "文字数指定（字以内）",
-        min_value=50,
-        max_value=3000,
-        value=st.session_state.char_limit,
-        step=50,
+        "文字数指定（字以内）", min_value=50, max_value=3000,
+        value=st.session_state.char_limit, step=50,
     )
 
     st.divider()
@@ -399,11 +519,8 @@ with tab_application:
 
     for i, ref in enumerate(st.session_state.reference_es_list):
         st.session_state.reference_es_list[i] = st.text_area(
-            f"内定者ES {i + 1}",
-            value=ref,
-            height=150,
-            placeholder="内定者のESをここに貼り付けてください。",
-            key=f"ref_es_{i}",
+            f"内定者ES {i + 1}", value=ref, height=150,
+            placeholder="内定者のESをここに貼り付けてください。", key=f"ref_es_{i}",
         )
         if len(st.session_state.reference_es_list) > 1:
             if st.button("この例文を削除", key=f"del_ref_{i}"):
@@ -418,28 +535,25 @@ with tab_application:
     st.subheader("企業研究メモ・キーワード（任意）")
     st.session_state.research_notes = st.text_area(
         "企業が使うキーワード、OB/OG訪問メモ、ニュースメモなど",
-        value=st.session_state.research_notes,
-        height=120,
+        value=st.session_state.research_notes, height=120,
         placeholder="例：「共創」「社会インフラ」「DX推進」 / 中期経営計画でXX事業を強化中 / OB談：〇〇という価値観を大切にしている",
     )
 
 
-# ════════ TAB 3：プロンプト生成 ══════════════════════════════════════
+# ════════ TAB 3：プロンプト生成 ═════════════════════════════════════
 with tab_prompt:
     st.subheader("プロンプトを生成する")
 
-    # 入力チェック
-    warnings = []
+    warnings_list = []
     if not st.session_state.name:
-        warnings.append("氏名が未入力です（プロフィールタブ）")
+        warnings_list.append("氏名が未入力です（プロフィールタブ）")
     if not st.session_state.question:
-        warnings.append("ES設問文が未入力です（応募情報タブ）")
+        warnings_list.append("ES設問文が未入力です（応募情報タブ）")
     if not st.session_state.company:
-        warnings.append("企業名が未入力です（応募情報タブ）")
+        warnings_list.append("企業名が未入力です（応募情報タブ）")
 
-    if warnings:
-        for w in warnings:
-            st.warning(f"⚠️ {w}")
+    for w in warnings_list:
+        st.warning(f"⚠️ {w}")
 
     if st.session_state.question:
         guessed = guess_question_type(st.session_state.question)
@@ -448,17 +562,14 @@ with tab_prompt:
 
     if st.button("🚀 プロンプトを生成", type="primary", use_container_width=True):
         st.session_state["generated_prompt"] = build_prompt()
+        if st.session_state.company:
+            save_history(build_history_entry())
 
-    if "generated_prompt" in st.session_state and st.session_state["generated_prompt"]:
+    if st.session_state.get("generated_prompt"):
         prompt_text = st.session_state["generated_prompt"]
-        char_count = len(prompt_text)
-
-        st.success(f"プロンプトが生成されました（{char_count:,}文字）")
-        st.caption("下のテキストをすべてコピーして、Claude.ai のチャット画面に貼り付けてください。")
-
+        st.success(f"プロンプトが生成されました（{len(prompt_text):,}文字）")
+        st.caption("下のコードブロック右上のコピーアイコンをクリックして全文コピーし、Claude.ai に貼り付けてください。")
         st.code(prompt_text, language=None)
-
-        st.info("💡 上のコードブロック右上のコピーアイコンをクリックすると全文をコピーできます。")
 
         st.divider()
         st.subheader("使い方")
@@ -468,3 +579,56 @@ with tab_prompt:
 3. プロンプトを貼り付けて送信します
 4. Claudeが返答した内容を確認し、必要に応じて「〇〇の部分をもっと具体的に」などと追加指示してブラッシュアップします
 """)
+
+    st.divider()
+    st.subheader("📝 セルフチェック")
+    st.caption("ClaudeのESを貼り付けると、文字数・受け身表現・実績数字の整合をルールベースでチェックします。")
+
+    es_input = st.text_area(
+        "生成されたESの本文をここに貼り付けてください",
+        height=200,
+        placeholder="Claudeが出力したESの本文をここに貼り付けてください…",
+        key="es_check_input",
+    )
+
+    if st.button("チェックを実行", key="run_check"):
+        if es_input.strip():
+            results = check_es_text(es_input.strip(), st.session_state.char_limit, st.session_state.achievements)
+            for r in results:
+                icon = "✅" if r["status"] == "ok" else "⚠️"
+                if r["status"] == "ok":
+                    st.success(f"{icon} **{r['label']}**：{r['message']}")
+                else:
+                    st.warning(f"{icon} **{r['label']}**：{r['message']}")
+        else:
+            st.error("ES本文を入力してください。")
+
+
+# ════════ TAB 4：使用履歴 ═══════════════════════════════════════════
+with tab_history:
+    st.subheader("使用履歴")
+    st.caption("プロンプト生成のたびに自動記録されます（企業名が入力されている場合のみ）。")
+
+    history = load_history()
+
+    if not history:
+        st.info("履歴はまだありません。プロンプトを生成すると自動記録されます。")
+    else:
+        if st.button("🗑️ 履歴をすべて削除", key="clear_history"):
+            HISTORY_FILE.unlink(missing_ok=True)
+            st.success("履歴を削除しました。")
+            st.rerun()
+
+        for entry in reversed(history):
+            with st.expander(f"📌 {entry.get('timestamp', '')}　{entry.get('company', '')}　「{entry.get('question', '')}」", expanded=False):
+                st.markdown(f"**企業名：** {entry.get('company', '')}")
+                st.markdown(f"**設問：** {entry.get('question', '')}")
+                st.markdown(f"**文字数：** {entry.get('char_limit', '')}字以内")
+                if entry.get("used_gakuchikas"):
+                    st.markdown("**使用したガクチカ：**")
+                    for ep in entry["used_gakuchikas"]:
+                        st.markdown(f"- {ep}…")
+                if entry.get("used_numbers"):
+                    st.markdown(f"**使用した数字：** {' / '.join(entry['used_numbers'])}")
+                if entry.get("used_keywords"):
+                    st.markdown(f"**使用したキーワード：** {' / '.join(entry['used_keywords'])}")
