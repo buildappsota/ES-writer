@@ -27,7 +27,7 @@ def init_session():
     defaults = {
         "name": "",
         "university": "",
-        "gakuchikas": [{"situation": "", "challenge": "", "action": "", "result": "", "learning": ""}],
+        "gakuchikas": [{"situation": "", "challenge": "", "action_steps": [{"text": "", "actor": "自分"}], "result": "", "learning": ""}],
         "strengths": [],
         "achievements": [{"before": "", "after": "", "period": "", "scale": ""}],
         "company": "",
@@ -56,7 +56,15 @@ def profile_to_dict() -> dict:
 def load_profile(data: dict):
     st.session_state.name = data.get("name", "")
     st.session_state.university = data.get("university", "")
-    st.session_state.gakuchikas = data.get("gakuchikas", [{"situation": "", "challenge": "", "action": "", "result": "", "learning": ""}])
+    raw_gakuchikas = data.get("gakuchikas", [{"situation": "", "challenge": "", "action_steps": [{"text": "", "actor": "自分"}], "result": "", "learning": ""}])
+    migrated = []
+    for g in raw_gakuchikas:
+        if "action" in g and "action_steps" not in g:
+            g = {**g, "action_steps": [{"text": g.pop("action"), "actor": "自分"}]}
+        if "action_steps" not in g:
+            g = {**g, "action_steps": [{"text": "", "actor": "自分"}]}
+        migrated.append(g)
+    st.session_state.gakuchikas = migrated
     st.session_state.strengths = data.get("strengths", [])
     st.session_state.achievements = data.get("achievements", [{"before": "", "after": "", "period": "", "scale": ""}])
 
@@ -194,13 +202,27 @@ def build_prompt() -> str:
                 parts.append(f"母数：{a['scale']}")
             lines.append(f"  実績{i}：{' ／ '.join(parts)}")
 
-    valid_gakuchikas = [g for g in s.gakuchikas if any(g.get(k) for k in ("situation", "challenge", "action", "result", "learning"))]
+    def _has_content(g: dict) -> bool:
+        steps = g.get("action_steps", [])
+        return any([g.get("situation"), g.get("challenge"), g.get("result"), g.get("learning"),
+                    any(st_["text"].strip() for st_ in steps)])
+
+    valid_gakuchikas = [g for g in s.gakuchikas if _has_content(g)]
     if valid_gakuchikas:
         lines.append("")
         lines.append("### 学生時代に力を入れたこと（ガクチカ）エピソード")
         for i, g in enumerate(valid_gakuchikas, 1):
             lines.append(f"  【エピソード{i}】")
-            for key, label in [("situation", "状況"), ("challenge", "課題"), ("action", "行動"), ("result", "結果"), ("learning", "学び")]:
+            for key, label in [("situation", "状況"), ("challenge", "課題")]:
+                if g.get(key):
+                    lines.append(f"    {label}：{g[key]}")
+            steps = [st_ for st_ in g.get("action_steps", []) if st_.get("text", "").strip()]
+            if steps:
+                lines.append("    行動（時系列）：")
+                for j, st_ in enumerate(steps, 1):
+                    actor = "【自分】" if st_.get("actor") == "自分" else "【他者】"
+                    lines.append(f"      {j}. {actor} {st_['text'].strip()}")
+            for key, label in [("result", "結果"), ("learning", "学び")]:
                 if g.get(key):
                     lines.append(f"    {label}：{g[key]}")
 
@@ -350,6 +372,11 @@ def build_prompt() -> str:
     lines.append("- [ ] 参照した内定者ESとフレーズが一字一句同じ箇所がないか")
     lines.append(f"- [ ] 文字数が指定の9割（{int(s.char_limit * 0.9)}字）以上あるか")
     lines.append("- [ ] 弱みを書く場合、改善のための具体的な行動がセットで書かれているか")
+    lines.append("- [ ] 同じ内容や役割の説明が、矛盾する形で二重に登場していないか（例：ある取り組みの目的や役割が、文中の別の箇所と食い違っていないか）")
+    lines.append("- [ ] 学び・気づきの一文が、本文で描かれた具体的な行動と論理的につながっているか")
+    lines.append("- [ ] 入力された情報だけでは判断できない事実（時系列・行為者など）を、断定的に創作して埋めていないか。")
+    lines.append("  もし埋めている場合は、その一文の末尾に **[要確認：〇〇という前提で書きました]** と必ず明記すること。")
+    lines.append("  創作したまま何も注記せず提出することは禁止する。")
     lines.append("")
     lines.append("---")
     lines.append("")
@@ -418,24 +445,57 @@ with tab_profile:
     st.caption("エピソードを複数登録できます。5項目に分けて入力してください。")
 
     for i, ep in enumerate(st.session_state.gakuchikas):
+        if "action_steps" not in ep:
+            ep["action_steps"] = [{"text": ep.pop("action", ""), "actor": "自分"}]
+
         with st.expander(f"エピソード {i + 1}", expanded=(i == 0)):
             ep["situation"] = st.text_area("状況", value=ep.get("situation", ""),
                 placeholder="例：大学1年から所属するテニスサークルで副代表を務めた。", key=f"ep_situation_{i}", height=80)
             ep["challenge"] = st.text_area("課題", value=ep.get("challenge", ""),
                 placeholder="例：部員の練習参加率が低下し、大会成績が3年ぶりに地区最下位になった。", key=f"ep_challenge_{i}", height=80)
-            ep["action"] = st.text_area("行動", value=ep.get("action", ""),
-                placeholder="例：個別ヒアリングを実施し、初心者向け練習メニューを新設。SNS告知を週3回に増やした。", key=f"ep_action_{i}", height=100)
+
+            st.markdown("**行動**（時系列順に箇条書きで入力）")
+            st.caption("各行動について「自分が行ったか / 他者が行ったか」を選択してください。")
+
+            step_to_remove = None
+            for j, step in enumerate(ep["action_steps"]):
+                c_text, c_actor, c_del = st.columns([5, 2, 1])
+                with c_text:
+                    step["text"] = st.text_input(
+                        f"行動 {j + 1}", value=step.get("text", ""),
+                        placeholder="例：部員に個別ヒアリングを実施した",
+                        key=f"ep_step_text_{i}_{j}", label_visibility="collapsed"
+                    )
+                with c_actor:
+                    step["actor"] = st.selectbox(
+                        "行為者", options=["自分", "他者"],
+                        index=0 if step.get("actor", "自分") == "自分" else 1,
+                        key=f"ep_step_actor_{i}_{j}", label_visibility="collapsed"
+                    )
+                with c_del:
+                    if len(ep["action_steps"]) > 1:
+                        if st.button("✕", key=f"del_step_{i}_{j}"):
+                            step_to_remove = j
+            if step_to_remove is not None:
+                ep["action_steps"].pop(step_to_remove)
+                st.rerun()
+
+            if st.button("＋ 行動を追加", key=f"add_step_{i}"):
+                ep["action_steps"].append({"text": "", "actor": "自分"})
+                st.rerun()
+
             ep["result"] = st.text_area("結果（数字を含めて）", value=ep.get("result", ""),
                 placeholder="例：3か月で参加率が42%→78%に向上。翌年の地区大会で準優勝。", key=f"ep_result_{i}", height=80)
             ep["learning"] = st.text_area("学び", value=ep.get("learning", ""),
                 placeholder="例：課題の根本を掘り下げてから施策を設計することの重要性を学んだ。", key=f"ep_learning_{i}", height=80)
+
             if len(st.session_state.gakuchikas) > 1:
                 if st.button("このエピソードを削除", key=f"del_ep_{i}"):
                     st.session_state.gakuchikas.pop(i)
                     st.rerun()
 
     if st.button("＋ エピソードを追加"):
-        st.session_state.gakuchikas.append({"situation": "", "challenge": "", "action": "", "result": "", "learning": ""})
+        st.session_state.gakuchikas.append({"situation": "", "challenge": "", "action_steps": [{"text": "", "actor": "自分"}], "result": "", "learning": ""})
         st.rerun()
 
     st.divider()
