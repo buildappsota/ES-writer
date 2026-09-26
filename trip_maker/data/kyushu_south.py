@@ -4,7 +4,8 @@
 主な出典: JR九州・JR西日本の新幹線運賃（博多〜鹿児島中央 指定席 11,950円、
 新大阪〜鹿児島中央 通常期 指定席 約23,600円など）、鹿児島空港連絡バス運賃（鹿児島中央まで 1,400円）、
 JAL・ANA・ソラシドエア・Peach などの早割運賃水準、各市町村・観光協会の観光案内。
-航空運賃・高速船運賃・入場料の一部は 2025 年以前の公表額からの推定を含むため、予約時に必ず最新額を確認すること。
+航空運賃・高速船運賃・入場料・宿泊費の多くは 2025 年以前の公表額や相場からの推定で、2026 年の公式情報では未確認。
+予約時に必ず最新額・運航状況・火山の規制情報（桜島・霧島連山）を確認すること。
 """
 
 DESTINATIONS = [
@@ -17,7 +18,7 @@ DESTINATIONS = [
         "niche": 2,
         "genres": {"gourmet": 3, "nature": 3, "onsen": 2, "history": 2, "town": 2, "drink": 2},
         "tagline": "噴煙を上げる桜島を眺め、砂むし温泉と黒豚・焼酎を味わう",
-        "description": "錦江湾に浮かぶ活火山・桜島を望む鹿児島市を拠点に、南へ約1時間で砂むし温泉の指宿、武家屋敷の残る知覧へ足をのばせる。黒豚、白熊、芋焼酎など食の楽しみも多い。",
+        "description": "錦江湾にそびえる活火山・桜島を望む鹿児島市を拠点に、南へ約1時間で砂むし温泉の指宿、武家屋敷の残る知覧へ足をのばせる。黒豚、白熊、芋焼酎など食の楽しみも多い。",
         "best_months": [3, 4, 5, 10, 11],
         "avoid_months": [],
         "min_nights": 0,
@@ -96,7 +97,7 @@ DESTINATIONS = [
              "note": "市街地と桜島を一望する高台。夕景・夜景も見られる"},
             {"name": "天文館アーケード", "area": "鹿児島市街", "kind": "shopping", "genres": ["town", "gourmet"], "niche": 1,
              "hours": 1.5, "cost": 0, "when": ["day", "evening"], "indoor": True, "fit": [],
-             "note": "鹿児島一の繁華街。白熊の店や土産物店が並ぶアーケード"},
+             "note": "鹿児島市の中心繁華街。白熊の店や土産物店が並ぶアーケード"},
             {"name": "天文館の焼酎バー・郷土料理店", "area": "鹿児島市街", "kind": "night", "genres": ["drink", "gourmet"],
              "niche": 2, "hours": 2.0, "cost": 0, "when": ["night"], "indoor": True,
              "fit": ["friends", "couple", "group"], "avoid": ["family_kids"],
@@ -375,7 +376,7 @@ DESTINATIONS = [
             {"name": "宮之浦の居酒屋で首折れサバと焼酎", "area": "宮之浦・北部", "kind": "night",
              "genres": ["drink", "gourmet"], "niche": 3, "hours": 2.0, "cost": 0, "when": ["night"], "indoor": True,
              "fit": ["friends", "solo", "group"],
-             "note": "島でいちばん店が多い宮之浦で地魚と島の焼酎を。登山前夜は早めに切り上げる"},
+             "note": "飲食店が集まる島の玄関口・宮之浦で地魚と島の焼酎を。登山前夜は早めに切り上げる"},
             {"name": "いなか浜", "area": "宮之浦・北部", "kind": "nature", "genres": ["beach", "nature"], "niche": 3,
              "hours": 1.0, "cost": 0, "when": ["day", "evening"], "indoor": False, "fit": ["couple", "solo"],
              "note": "永田の砂浜で夕日の名所。初夏はアカウミガメの産卵地で、夜間の立入りにはルールがある"},
@@ -448,6 +449,8 @@ DESTINATIONS = [
             "nagoya": [
                 {"mode": "flight", "route": "中部国際空港→（飛行機）→鹿児島空港→（飛行機）→奄美空港→（バス）→名瀬",
                  "hours": 6.5, "cost": 31500},
+                {"mode": "flight", "route": "名古屋→（近鉄特急）→大阪難波→（南海）→関西空港→（Peach）→奄美空港→（バス）→名瀬（LCC）",
+                 "hours": 7.5, "cost": 16000},
             ],
             "osaka": [
                 {"mode": "flight", "route": "関西→（Peach）→奄美空港→（バス）→名瀬",

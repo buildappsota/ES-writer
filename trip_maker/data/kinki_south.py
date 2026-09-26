@@ -5,7 +5,9 @@
 国内線運賃相場（トラベルコ・エアトリ等の相場ページ）、東大寺・鳥羽水族館・
 ミキモト真珠島・志摩スペイン村・海女小屋はちまんかまど等の公式情報、
 奈良県・興福寺の五重塔修理の案内、伊勢志摩観光ナビ。
-運賃・入場料・宿泊料の一部は出典で確認できなかった推定値を含むため、
+白浜・高野山・熊野古道・吉野・十津川の運賃（くろしお・南紀・南海高野線・
+近鉄吉野線・八木新宮特急バス）と各地の入場料・宿泊料の多くは、既知の運賃体系や
+料金からの推計で出典未確認。乗継ルートは区間ごとの合計で、通し乗車券より高めに出る。
 予約前に最新の公式情報を確認すること。
 """
 
@@ -19,7 +21,7 @@ DESTINATIONS = [
         "niche": 1,
         "genres": {"history": 3, "art": 2, "nature": 2, "town": 2, "gourmet": 1},
         "tagline": "鹿が歩く公園に大仏と古寺、1300年前の都をたどる",
-        "description": "東大寺・春日大社・興福寺が奈良公園に集まり、鹿が放し飼いにされている。"
+        "description": "東大寺・春日大社・興福寺が奈良公園に集まり、天然記念物の野生の鹿が園内を歩く。"
                        "ならまちの町家、斑鳩の法隆寺、西ノ京、飛鳥や山の辺の道まで足を延ばせば、"
                        "古代の寺社と仏像を静かに巡る旅にもなる。",
         "best_months": [3, 4, 5, 10, 11],
@@ -640,11 +642,11 @@ DESTINATIONS = [
              "hours": 1.0, "cost": 0, "when": ["day", "evening", "night"], "indoor": False,
              "fit": ["friends", "couple", "family_kids"], "months": [12, 1, 2],
              "note": "冬の間だけ大塔川をせき止めて造る大露天風呂。水着着用可。例年12月〜2月"},
-            {"name": "熊野川 川舟下り", "area": "本宮", "kind": "activity", "genres": ["activity", "nature", "history"],
+            {"name": "熊野川 川舟下り", "area": "新宮", "kind": "activity", "genres": ["activity", "nature", "history"],
              "niche": 4, "hours": 1.5, "cost": 5000, "when": ["day"], "indoor": False,
              "fit": ["family_adults", "couple", "friends"], "booking": True,
              "months": [3, 4, 5, 6, 7, 8, 9, 10, 11],
-             "note": "世界遺産「川の参詣道」を和船で速玉大社方面へ下る。予約制・増水時は欠航"},
+             "note": "新宮市熊野川町から世界遺産「川の参詣道」を和船で速玉大社近くまで下る。予約制・増水時は欠航"},
             {"name": "熊野速玉大社", "area": "新宮", "kind": "temple", "genres": ["history"], "niche": 3,
              "hours": 0.75, "cost": 0, "when": ["morning", "day"], "indoor": False,
              "fit": ["family_adults", "solo"],

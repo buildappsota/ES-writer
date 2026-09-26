@@ -25,6 +25,29 @@ REGION_MODULES = (
     "overseas_south",
 )
 
+# データの確認状況（2026 年 9 月の作成時）。セッションの Web 検索上限に達したため、
+# 後半に作成したモジュールは Web で確認できていない。画面とダウンロードに表示する。
+DATA_BASIS_LABELS = {
+    "web_partial": "主な運賃・料金の一部を 2026 年 9 月に Web 検索で確認（残りは推定）",
+    "knowledge": "Web では未確認（2026 年 6 月までの知識に基づく推定値）",
+}
+MODULE_DATA_BASIS = {
+    "hokkaido": "web_partial",
+    "tohoku": "web_partial",
+    "kanto": "knowledge",
+    "chubu_north": "web_partial",
+    "chubu_tokai": "web_partial",
+    "kinki_north": "knowledge",
+    "kinki_south": "web_partial",
+    "chugoku": "web_partial",
+    "shikoku": "knowledge",
+    "kyushu_north": "web_partial",
+    "kyushu_south": "web_partial",
+    "okinawa": "knowledge",
+    "overseas_north": "knowledge",
+    "overseas_south": "knowledge",
+}
+
 _cache: list[dict] | None = None
 
 
@@ -44,6 +67,8 @@ def load_destinations(strict: bool = True) -> list[dict]:
             if strict or e.name != f"{__name__}.{name}":
                 raise
             continue
+        for d in module.DESTINATIONS:
+            d.setdefault("data_basis", MODULE_DATA_BASIS[name])
         destinations.extend(module.DESTINATIONS)
     if strict:
         _cache = destinations

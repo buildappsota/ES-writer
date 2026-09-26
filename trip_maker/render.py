@@ -275,6 +275,16 @@ def sections(plan: Plan, level: int, day_heading: str = "###", with_header: bool
     return out
 
 
+def data_basis_md(plan: Plan) -> str:
+    from .data import DATA_BASIS_LABELS
+    lines = []
+    for st in plan.stops:
+        basis = st.dest.get("data_basis")
+        if basis in DATA_BASIS_LABELS:
+            lines.append(f"- {st.dest['name']}：{DATA_BASIS_LABELS[basis]}")
+    return "\n".join(lines)
+
+
 def conditions_md(plan: Plan) -> str:
     c = plan.cond
     genres = "・".join(GENRES[g] for g in c.genres) or "おまかせ"
@@ -295,8 +305,11 @@ def to_markdown(plan: Plan, level: int) -> str:
         if heading:
             lines += [f"## {heading}", ""]
         lines += [body, ""]
-    lines += ["## 条件", "", conditions_md(plan), "",
-              "---", "",
+    lines += ["## 条件", "", conditions_md(plan), ""]
+    basis = data_basis_md(plan)
+    if basis:
+        lines += ["## データの確認状況", "", basis, ""]
+    lines += ["---", "",
               "※ 金額・所要時間は 2026 年 9 月時点の公開情報をもとにした目安です。営業日・料金・ダイヤは変わることがあるため、"
               "予約前に必ず公式情報で確認してください。"]
     return "\n".join(lines)

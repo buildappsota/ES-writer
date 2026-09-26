@@ -261,6 +261,10 @@ def show_plan(plan: planner.Plan, level: int) -> None:
             st.markdown(f"#### {heading}")
         st.markdown(body)
 
+    basis = render.data_basis_md(plan)
+    if basis:
+        st.caption("データの確認状況（金額・所要時間はすべて目安。予約前に公式情報で確認してください）\n\n" + basis)
+
     with st.expander(f"他の候補（{len(plan.alternatives)} 件）"):
         if not plan.alternatives:
             st.caption("条件に合う行き先がほかにありません。")
