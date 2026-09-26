@@ -1,18 +1,24 @@
 """海外（東アジア：韓国・台湾・香港/マカオ・モンゴル）の行き先データ。
 
-数値はすべて 2026年9月時点の公開情報に基づく目安。
-主な根拠：各航空会社（大韓航空・アシアナ航空・MIATモンゴル航空・キャセイパシフィック航空・中華航空・
-エバー航空ほか各LCC）の就航路線と運賃水準、KORAIL（KTX）・台湾高速鉄道の運賃、関釜フェリー、
-韓国法務部（K-ETA一時免除の延長告知 2025年12月23日・電子入国申告）、台湾内政部移民署（TWAC）、
-香港入境事務処・香港衛生署（電子たばこ規制）、国家遺産庁宮陵遺跡本部（ソウルの古宮）、各施設の公式案内。
-韓国・台湾・香港の入国ルール、ソウルの古宮の料金・休館日、為替は2026年9月に確認した。
-航空運賃・その他の入場料・施設の営業状況は再確認できていない概算を含むので、予約前に必ず最新情報を確認すること。
+数値は 2026年9月時点の目安。確認の度合いは項目によって異なる（作成時、Web 検索は上限に達し、
+公式サイトの多くは通信制限で閲覧できなかった）。
+- 為替：npm で配布されている為替データ（@fawazahmed0/currency-api の 2026-09-26 版）で確認した。
+- 入国ルール（K-ETA の一時免除・電子入国申告、台湾 TWAC、香港の規制など）とソウルの古宮の料金・休館日：
+  GitHub で公開されている第三者の旅行ガイド（2026年9月に各公式サイトで確認したと記載）と照合した。
+  各国政府・施設の公式サイトそのものは確認できていない。
+- 航空運賃・KTX・台湾高速鉄道・フェリーの運賃、その他の入場料・営業状況：2026年6月までの知識に基づく概算で、未確認。
+予約・渡航前に、必ず各国政府と各施設の公式情報で最新の内容を確認すること。
 
 換算レート（2026年9月26日の日次レート、fawazahmed0/currency-api。9月中は±2%程度の変動）：
 100ウォン≈11.6円、1台湾ドル≈5.0円、1香港ドル≈20円、1マカオ・パタカ≈19.5円、1,000トゥグルグ≈44円
 （1米ドル≈157円）。
 航空運賃は往復の早期購入運賃（FSC）またはLCCの預け荷物なし運賃に諸税・燃油サーチャージ等を加えた額の半分に、
 空港アクセス（日本側・現地側）を足した片道の目安。
+
+時差（tz_offset＝現地時間−日本時間）：韓国 0、台湾・香港・マカオ・モンゴル −1。
+本モジュールの行き先はいずれも夏時間（サマータイム）を実施しておらず、時差は通年一定
+（モンゴルは2015〜2016年に夏時間を実施したが、2017年以降は廃止）。
+定休日（closed）は各施設の従来の案内に基づく。オンラインで再確認できていないものは note に「要確認」と記した。
 """
 
 DESTINATIONS = [
@@ -129,7 +135,7 @@ DESTINATIONS = [
             {"name": "国立中央博物館", "area": "明洞・南山・龍山", "kind": "museum", "genres": ["history", "art"], "niche": 3,
              "hours": 2.5, "cost": 0, "when": ["day"], "indoor": True,
              "fit": ["solo", "family_adults", "family_kids"],
-             "note": "先史時代から朝鮮王朝までの文化財を展示。常設展は無料"},
+             "note": "先史時代から朝鮮王朝までの文化財を展示。常設展は無料。定休日はなく、元日・旧正月と秋夕の当日のみ休館"},
             {"name": "盤浦漢江公園と月光レインボー噴水", "area": "明洞・南山・龍山", "kind": "night",
              "genres": ["town", "drink"], "niche": 2, "hours": 1.5, "cost": 0, "when": ["evening", "night"],
              "indoor": False, "fit": ["couple", "friends"], "months": [4, 5, 6, 7, 8, 9, 10],
@@ -278,7 +284,7 @@ DESTINATIONS = [
             {"name": "チャガルチ市場", "area": "南浦洞・影島", "kind": "market", "genres": ["gourmet"], "niche": 2,
              "hours": 1.5, "cost": 0, "when": ["day", "evening"], "indoor": True,
              "fit": ["friends", "family_adults"],
-             "note": "韓国最大級の水産市場。建物内と周辺の路地に鮮魚店と食堂が並ぶ"},
+             "note": "韓国最大級の水産市場。建物内と周辺の路地に鮮魚店と食堂が並ぶ。建物内は毎月第1・第3火曜が休み（要確認）"},
             {"name": "国際市場とBIFF広場", "area": "南浦洞・影島", "kind": "market", "genres": ["town", "gourmet"],
              "niche": 2, "hours": 1.5, "cost": 0, "when": ["day", "evening"], "indoor": False, "fit": ["friends"],
              "note": "衣料・雑貨の市場と屋台通り。シアホットクやオムクを食べ歩き"},
@@ -417,7 +423,7 @@ DESTINATIONS = [
             {"name": "海女博物館", "area": "済州市・東部", "kind": "museum", "genres": ["history"], "niche": 4,
              "hours": 1.0, "cost": 130, "when": ["day"], "indoor": True, "fit": ["solo", "family_adults"],
              "closed": [0],
-             "note": "素潜りでアワビやサザエを獲る済州の海女の暮らしと道具を紹介。月曜休み"},
+             "note": "素潜りでアワビやサザエを獲る済州の海女の暮らしと道具を紹介。月曜休館（毎週か第1・第3月曜のみかは要確認）"},
             {"name": "ダランシオルム", "area": "済州市・東部", "kind": "nature", "genres": ["nature", "activity"], "niche": 4,
              "hours": 1.5, "cost": 0, "when": ["morning", "day", "evening"], "indoor": False,
              "fit": ["solo", "couple"],
@@ -428,7 +434,7 @@ DESTINATIONS = [
              "note": "済州市中心の常設市場。夜は屋台ゾーンに黒豚串や海鮮の屋台が並ぶ"},
             {"name": "済州4・3平和公園", "area": "済州市・東部", "kind": "museum", "genres": ["history"], "niche": 4,
              "hours": 1.5, "cost": 0, "when": ["day"], "indoor": True, "fit": ["solo", "family_adults"],
-             "note": "1948年から続いた済州4・3事件の犠牲者を追悼する公園と記念館"},
+             "note": "1948年から続いた済州4・3事件の犠牲者を追悼する公園と記念館（記念館の休館日は要確認）"},
             {"name": "漢拏山登山", "area": "漢拏山", "kind": "nature", "genres": ["nature", "activity"], "niche": 3,
              "hours": 9.0, "cost": 0, "when": ["morning", "day"], "indoor": False, "fit": ["solo", "friends"],
              "booking": True,
@@ -441,9 +447,9 @@ DESTINATIONS = [
              "hours": 0.75, "cost": 230, "when": ["day"], "indoor": False, "fit": ["family_kids", "family_adults"],
              "note": "溶岩が冷えてできた六角形の石柱が並ぶ海岸"},
             {"name": "西帰浦毎日オルレ市場", "area": "西帰浦・南部", "kind": "market", "genres": ["gourmet", "town"],
-             "niche": 3, "hours": 1.0, "cost": 0, "when": ["day", "evening", "night"], "indoor": True,
+             "niche": 3, "hours": 1.0, "cost": 0, "when": ["day", "evening"], "indoor": True,
              "fit": ["friends", "family_kids"],
-             "note": "アーケードの市場。刺身の盛り合わせやみかん、屋台の軽食がそろう"},
+             "note": "アーケードの市場。刺身の盛り合わせやみかん、屋台の軽食がそろう。夜は早めに店じまいする"},
             {"name": "済州オルレ7コース", "area": "西帰浦・南部", "kind": "activity", "genres": ["nature", "activity"],
              "niche": 3, "hours": 4.5, "cost": 0, "when": ["morning", "day"], "indoor": False,
              "fit": ["solo", "couple"],
@@ -586,8 +592,8 @@ DESTINATIONS = [
              "note": "動物園駅から山上の茶畑へ（料金は往復）。茶芸館で鉄観音や包種茶を。月曜は点検で運休（祝日を除く）"},
             {"name": "国立故宮博物院", "area": "士林・北投・陽明山", "kind": "museum", "genres": ["history", "art"],
              "niche": 1, "hours": 2.5, "cost": 1700, "when": ["day"], "indoor": True,
-             "fit": ["family_adults", "solo"],
-             "note": "中国歴代王朝の文物を収蔵。人気の翠玉白菜などは展示替えがあるので公式で確認"},
+             "fit": ["family_adults", "solo"], "closed": [0],
+             "note": "中国歴代王朝の文物を収蔵。人気の翠玉白菜などは展示替えがあるので公式で確認。月曜休館"},
             {"name": "北投温泉", "area": "士林・北投・陽明山", "kind": "onsen", "genres": ["onsen", "history"], "niche": 2,
              "hours": 2.0, "cost": 1000, "when": ["day", "evening"], "indoor": True,
              "fit": ["family_adults", "couple"],
@@ -860,7 +866,7 @@ DESTINATIONS = [
              "note": "ピークトラムで山頂へ上がり、夕景から夜景まで。料金はトラム往復の目安で展望台は別料金"},
             {"name": "大館", "area": "香港島", "kind": "museum", "genres": ["history", "art"], "niche": 3,
              "hours": 1.0, "cost": 0, "when": ["day", "evening"], "indoor": True, "fit": ["couple", "solo"],
-             "note": "旧中区警察署と監獄を再生した複合施設。無料の展示とバー・レストラン"},
+             "note": "旧中区警察署と監獄を再生した複合施設。無料の展示とバー・レストラン。敷地は毎日開くが、美術展示棟の休館日は要確認"},
             {"name": "ドラゴンズバック", "area": "香港島", "kind": "nature", "genres": ["nature", "activity"], "niche": 3,
              "hours": 3.5, "cost": 0, "when": ["morning", "day"], "indoor": False, "fit": ["friends", "solo"],
              "note": "香港島東部の尾根道ハイキング。海を見下ろして歩き、大浪湾の浜に下りる"},
@@ -883,7 +889,7 @@ DESTINATIONS = [
             {"name": "香港故宮文化博物館", "area": "九龍", "kind": "museum", "genres": ["history", "art"], "niche": 3,
              "hours": 2.0, "cost": 1200, "when": ["day"], "indoor": True, "fit": ["family_adults", "solo"],
              "closed": [1],
-             "note": "北京の故宮博物院の文物を展示する西九龍の博物館（特別展は別料金）。火曜休館"},
+             "note": "北京の故宮博物院の文物を展示する西九龍の博物館（特別展は別料金）。火曜休館（祝日の場合は開館）"},
             {"name": "天壇大仏とゴンピン360", "area": "ランタオ島", "kind": "temple", "genres": ["history", "nature"],
              "niche": 2, "hours": 4.0, "cost": 5400, "when": ["day"], "indoor": False,
              "fit": ["family_adults", "family_kids"],
@@ -1005,7 +1011,7 @@ DESTINATIONS = [
             {"name": "チンギス・ハーン国立博物館", "area": "ウランバートル市内", "kind": "museum", "genres": ["history"],
              "niche": 3, "hours": 2.0, "cost": 1300, "when": ["day"], "indoor": True,
              "fit": ["family_adults", "solo", "family_kids"],
-             "note": "2022年開館の大型博物館。匈奴からモンゴル帝国、清朝期までの出土品を展示"},
+             "note": "2022年開館の大型博物館。匈奴からモンゴル帝国、清朝期までの出土品を展示（休館日は要確認）"},
             {"name": "国営デパート", "area": "ウランバートル市内", "kind": "shopping", "genres": ["town"], "niche": 2,
              "hours": 1.0, "cost": 0, "when": ["day", "evening"], "indoor": True, "fit": ["family_adults"],
              "note": "カシミヤ製品や民芸品などの土産がそろう老舗デパート"},

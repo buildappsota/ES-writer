@@ -30,6 +30,7 @@ REGION_MODULES = (
 DATA_BASIS_LABELS = {
     "web_partial": "主な運賃・料金の一部を 2026 年 9 月に Web 検索で確認（残りは推定）",
     "knowledge": "Web では未確認（2026 年 6 月までの知識に基づく推定値）",
+    "secondary": "為替は 2026 年 9 月のデータで確認。入国条件・一部の入場料は第三者の公開ガイドと照合（公式サイトは未確認）。運賃は推定",
 }
 MODULE_DATA_BASIS = {
     "hokkaido": "web_partial",
@@ -44,8 +45,8 @@ MODULE_DATA_BASIS = {
     "kyushu_north": "web_partial",
     "kyushu_south": "web_partial",
     "okinawa": "knowledge",
-    "overseas_north": "knowledge",
-    "overseas_south": "knowledge",
+    "overseas_north": "secondary",
+    "overseas_south": "secondary",
 }
 
 _cache: list[dict] | None = None
