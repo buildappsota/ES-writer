@@ -5,8 +5,9 @@
 IBEXエアラインズ（仙台〜広島）の運航情報、酒田市「定期船とびしま」の令和8年度運航・運賃案内、
 酒田市観光物産協会・やまがたへの旅（飛島）、なまはげ館・男鹿水族館GAO・男鹿温泉郷（五風）・
 男鹿なび（なまはげシャトル・石焼料理）の各公式情報、各観光協会・自治体の観光案内。
-航空運賃は1〜2か月前の早割（JAL・ANA等）の目安に空港アクセス費を加えたもの。
-在来線・新幹線の一部区間、入場料、宿泊費は改定・季節で変わるため、利用前に最新情報を確認すること。
+航空運賃は1〜2か月前の早割（JAL・ANA等）の目安に空港アクセス費を加えたもの（広島〜仙台は中国地方データと同じ相場に揃えた）。
+上記以外の新幹線・在来線の運賃は改定前の運賃表からの推計を含む。入場料・宿泊費も改定・季節で変わるため、
+利用前に最新情報を確認すること。
 """
 
 DESTINATIONS = [
@@ -51,7 +52,7 @@ DESTINATIONS = [
             ],
             "hiroshima": [
                 {"mode": "flight", "route": "広島→（リムジンバス）→広島空港→（IBEX・ANA）→仙台空港→（アクセス線）→仙台",
-                 "hours": 3.9, "cost": 22100},
+                 "hours": 3.9, "cost": 18200},
             ],
             "fukuoka": [
                 {"mode": "flight", "route": "博多→福岡空港→（飛行機）→仙台空港→（アクセス線）→仙台",
@@ -436,7 +437,7 @@ DESTINATIONS = [
             "hiroshima": [
                 {"mode": "flight",
                  "route": "広島→広島空港→（IBEX・ANA）→仙台空港→仙台→（はやぶさ）→八戸→（JRバス）→十和田湖",
-                 "hours": 8.0, "cost": 34300},
+                 "hours": 8.0, "cost": 30400},
             ],
             "fukuoka": [
                 {"mode": "flight",
@@ -564,7 +565,7 @@ DESTINATIONS = [
                  "hours": 6.3, "cost": 31500},
                 {"mode": "flight",
                  "route": "広島→広島空港→（IBEX・ANA）→仙台空港→仙台→（JR仙山線）→山形→大石田→（路線バス）→銀山温泉",
-                 "hours": 7.5, "cost": 25000},
+                 "hours": 7.5, "cost": 21100},
             ],
             "fukuoka": [
                 {"mode": "flight",
@@ -685,7 +686,7 @@ DESTINATIONS = [
             ],
             "hiroshima": [
                 {"mode": "flight", "route": "広島→広島空港→（IBEX・ANA）→仙台空港→仙台→（はやぶさ・こまち）→角館",
-                 "hours": 6.1, "cost": 30800},
+                 "hours": 6.1, "cost": 26900},
             ],
             "fukuoka": [
                 {"mode": "flight", "route": "博多→福岡空港→（飛行機）→仙台空港→仙台→（はやぶさ・こまち）→角館",
@@ -709,7 +710,7 @@ DESTINATIONS = [
             {"name": "比内地鶏の親子丼", "price": 1500, "meal": "lunch", "note": "歯ごたえのある地鶏を使う"},
             {"name": "いぶりがっこ", "price": 500, "meal": "snack", "note": "大根を燻してから漬けた漬物"},
             {"name": "生もろこし", "price": 500, "meal": "snack", "note": "小豆粉で作る角館の打ち菓子"},
-            {"name": "山の芋鍋", "price": 1500, "meal": "dinner", "note": "山芋の団子を入れた鍋。乳頭温泉郷の宿の名物"},
+            {"name": "山の芋鍋", "price": 1500, "meal": "dinner", "note": "山芋の団子を入れた味噌仕立ての鍋。乳頭温泉郷・鶴の湯の夕食の名物として知られる"},
         ],
         "spots": [
             {"name": "角館武家屋敷通り", "area": "角館", "kind": "sight", "genres": ["history", "town"], "niche": 1,
@@ -719,9 +720,6 @@ DESTINATIONS = [
             {"name": "青柳家", "area": "角館", "kind": "museum", "genres": ["history"], "niche": 2,
              "hours": 1.0, "cost": 500, "when": ["day"], "indoor": True, "fit": ["family_adults", "family_kids"],
              "note": "武家屋敷の広い敷地に武具や美術品などの展示蔵が並ぶ"},
-            {"name": "石黒家", "area": "角館", "kind": "sight", "genres": ["history"], "niche": 3,
-             "hours": 0.5, "cost": 400, "when": ["day"], "indoor": True, "fit": ["solo", "family_adults"],
-             "note": "武家屋敷通りに残る上級武士の家。座敷と資料を見学できる"},
             {"name": "角館樺細工伝承館", "area": "角館", "kind": "museum", "genres": ["art", "history"], "niche": 3,
              "hours": 0.75, "cost": 300, "when": ["day"], "indoor": True, "fit": ["solo", "couple"],
              "note": "山桜の樹皮を使う伝統工芸・樺細工の展示と実演"},
@@ -753,7 +751,7 @@ DESTINATIONS = [
              "note": "ブナ林に一軒宿が点在し、宿ごとに泉質が異なる。日帰り入浴の料金・受付時間は宿ごとに違うので要確認（料金は1軒の目安）"},
             {"name": "乳頭温泉郷の宿で過ごす夜", "area": "乳頭温泉郷", "kind": "onsen", "genres": ["onsen", "remote"],
              "niche": 3, "hours": 2.0, "cost": 0, "when": ["evening", "night"], "indoor": True,
-             "fit": ["couple", "solo", "family_adults"],
+             "fit": ["couple", "solo", "family_adults"], "booking": True,
              "note": "街明かりのない山中の一軒宿で、夜の露天風呂や冬の雪見風呂を楽しむ（宿泊者向け）"},
             {"name": "ブナ林の自然探勝路", "area": "乳頭温泉郷", "kind": "nature", "genres": ["nature"], "niche": 4,
              "hours": 1.5, "cost": 0, "when": ["morning", "day"], "indoor": False, "fit": ["solo", "couple"],
@@ -872,7 +870,7 @@ DESTINATIONS = [
              "note": "境内が青いアジサイで埋まる寺。公開は見頃の時期に限られ、拝観料がかかる（料金は目安）"},
             {"name": "ゴジラ岩（潮瀬崎）", "area": "男鹿半島南部", "kind": "nature", "genres": ["nature"], "niche": 3,
              "hours": 0.75, "cost": 0, "when": ["evening"], "indoor": False, "fit": ["friends", "couple"],
-             "note": "怪獣の横顔に見える岩。夕日が口元に重なる4月・10月ごろの夕方が人気"},
+             "note": "怪獣の横顔に見える岩。夕日が口元に重なる春と秋の一時期の夕方が人気（見られる時期は事前に確認）"},
             {"name": "鵜ノ崎海岸", "area": "男鹿半島南部", "kind": "nature", "genres": ["nature", "beach"], "niche": 4,
              "hours": 1.0, "cost": 0, "when": ["day"], "indoor": False, "fit": ["family_kids", "couple"],
              "note": "平らな岩畳が沖まで続く遠浅の海岸。干潮時は磯遊びができる"},
@@ -911,7 +909,7 @@ DESTINATIONS = [
         "niche": 5,
         "genres": {"remote": 3, "nature": 3, "activity": 1, "beach": 1, "gourmet": 1},
         "tagline": "定期船で75分。ウミネコと花の日本海の小島",
-        "description": "酒田港から定期船で約75分、日本海に浮かぶ周囲約12kmの小島。ウミネコの繁殖地やトビシマカンゾウの群生、洞窟や石の浜が点在し、宿は数軒の旅館と民宿のみ。自転車と徒歩で島をひと回りする旅になる。",
+        "description": "酒田港から定期船で約75分、日本海に浮かぶ周囲約10kmの小島。ウミネコの繁殖地やトビシマカンゾウの群生、洞窟や石の浜が点在し、宿は数軒の旅館と民宿のみ。自転車と徒歩で島をひと回りする旅になる。",
         "best_months": [5, 6, 7, 8, 9],
         "avoid_months": [12, 1, 2],
         "min_nights": 1,
@@ -1016,7 +1014,7 @@ DESTINATIONS = [
              "note": "街明かりのほとんどない島で、晴れた夜は満天の星。夜道は暗いのでライト持参"},
             {"name": "山居倉庫", "area": "酒田（乗船前後）", "kind": "sight", "genres": ["history", "town"], "niche": 2,
              "hours": 1.0, "cost": 0, "when": ["day", "evening"], "indoor": False, "fit": ["couple", "family_adults"],
-             "note": "明治期の米保管倉庫とケヤキ並木が続く酒田の代表的な景観。物産館を併設"},
+             "note": "明治期の米保管倉庫とケヤキ並木が続く酒田の代表的な景観。倉庫の外観と並木道は自由に見学できる"},
             {"name": "さかた海鮮市場", "area": "酒田（乗船前後）", "kind": "market", "genres": ["gourmet"], "niche": 3,
              "hours": 1.0, "cost": 0, "when": ["morning", "day"], "indoor": True, "fit": ["family_kids", "friends"],
              "note": "定期船発着所の近く。鮮魚店と食堂があり、乗船前後の食事に便利"},
