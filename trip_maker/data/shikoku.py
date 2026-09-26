@@ -1,13 +1,14 @@
 """四国（香川・愛媛・徳島・高知）の行き先データ。
 
 2026年9月時点の公開情報に基づく目安（大人 1 名・片道・通常期）。
-主な出典: JR西日本・JR四国の運賃・特急料金の体系（新幹線区間は chugoku モジュールで確認済みの
-岡山までの正規料金〔東京〜岡山 約17,400円、新大阪〜岡山 約6,500円、博多〜岡山 約13,000円など〕に、
-快速マリンライナー・特急しおかぜ・南風・あしずり区間を加算した推計）、航空各社の就航路線と早割運賃の水準
-（新千歳・那覇〜岡山の直行便は chugoku モジュールの確認値）、四国汽船・小豆島フェリー・両備フェリー・
-石崎汽船などの航路、ベネッセアートサイト直島・金刀比羅宮・道後温泉・高知県・各市町村観光協会の案内。
-作成時にWeb検索の上限に達したため、四国側の運賃・船賃・入場料・体験料・宿泊料の多くは作成者の知識による
-推計で、個別には再確認できていない。予約・訪問前に必ず各公式情報で最新の運賃・料金・休館日を確認すること。
+主な出典: 新幹線区間は chugoku モジュールで確認済みの岡山までの正規料金（東京〜岡山 約17,400円、
+新大阪〜岡山 約6,500円、博多〜岡山 約13,000円など）と新千歳・那覇〜岡山の直行便。四国側の鉄道
+（快速マリンライナー・特急しおかぜ・南風・あしずり）、航空の早割、船（四国汽船・小豆島フェリー・
+両備フェリー・石崎汽船など）の運賃は運賃体系から加算した推計。城郭の入場料（松山城・丸亀城・高松城跡・
+高知城）は日本100名城の施設案内、日曜市の規模は高知市の案内に基づく。
+作成時・ファクトチェック時ともWeb検索が使えなかったため、上記以外の四国側の運賃・船賃・入場料・体験料・
+宿泊料・定休日の多くは作成者の知識による推計で、個別には再確認できていない。予約・訪問前に必ず
+各公式情報で最新の運賃・料金・休館日を確認すること。
 """
 
 DESTINATIONS = [
@@ -87,14 +88,14 @@ DESTINATIONS = [
         "spots": [
             {"name": "地中美術館", "area": "直島・南部（美術館エリア）", "kind": "museum", "genres": ["art"], "niche": 2,
              "hours": 1.5, "cost": 2500, "when": ["morning", "day"], "indoor": True,
-             "fit": ["solo", "couple", "friends"], "booking": True,
+             "fit": ["solo", "couple", "friends"], "booking": True, "closed": [0],
              "note": "安藤忠雄設計の地下の美術館にモネ、タレル、デ・マリアの作品。オンラインの日時指定予約制、月曜休館"},
             {"name": "ベネッセハウス ミュージアム", "area": "直島・南部（美術館エリア）", "kind": "museum",
              "genres": ["art", "nature"], "niche": 3, "hours": 1.5, "cost": 1500, "when": ["day", "evening"],
              "indoor": True, "fit": ["couple", "solo"],
              "note": "ホテルと一体の美術館。海辺や屋外にも作品が置かれている"},
             {"name": "李禹煥美術館", "area": "直島・南部（美術館エリア）", "kind": "museum", "genres": ["art"], "niche": 3,
-             "hours": 1.0, "cost": 1200, "when": ["day"], "indoor": True, "fit": ["solo", "couple"],
+             "hours": 1.0, "cost": 1200, "when": ["day"], "indoor": True, "fit": ["solo", "couple"], "closed": [0],
              "note": "安藤忠雄設計の半地下の建物に李禹煥の作品を展示。月曜休館"},
             {"name": "草間彌生「南瓜」（黄かぼちゃ）", "area": "直島・南部（美術館エリア）", "kind": "sight",
              "genres": ["art", "beach"], "niche": 1, "hours": 0.5, "cost": 0, "when": ["morning", "day", "evening"],
@@ -102,13 +103,14 @@ DESTINATIONS = [
              "note": "ベネッセハウス近くの桟橋に置かれた作品。2021年の台風で流され、修復後に再設置された"},
             {"name": "直島新美術館", "area": "直島・本村", "kind": "museum", "genres": ["art"], "niche": 3,
              "hours": 1.5, "cost": 2500, "when": ["day"], "indoor": True, "fit": ["solo", "couple", "friends"],
+             "closed": [0],
              "note": "2025年に開館した安藤忠雄設計の美術館。アジアの現代美術を中心に展示。月曜休館、予約推奨"},
             {"name": "家プロジェクト", "area": "直島・本村", "kind": "museum", "genres": ["art", "history", "town"],
              "niche": 2, "hours": 2.0, "cost": 1200, "when": ["day"], "indoor": True,
-             "fit": ["solo", "couple", "friends"],
+             "fit": ["solo", "couple", "friends"], "closed": [0],
              "note": "本村の古い家屋や寺社跡を作品化した一連のアートスペース。共通チケットで歩いて回る。月曜休館"},
             {"name": "ANDO MUSEUM", "area": "直島・本村", "kind": "museum", "genres": ["art"], "niche": 3,
-             "hours": 0.5, "cost": 600, "when": ["day"], "indoor": True, "fit": ["solo"],
+             "hours": 0.5, "cost": 600, "when": ["day"], "indoor": True, "fit": ["solo"], "closed": [0],
              "note": "築約100年の木造民家の内部にコンクリートの空間を挿入した小さな館。月曜休館"},
             {"name": "草間彌生「赤かぼちゃ」", "area": "直島・宮浦", "kind": "sight", "genres": ["art"], "niche": 1,
              "hours": 0.25, "cost": 0, "when": ["morning", "day", "evening"], "indoor": False,
@@ -118,16 +120,17 @@ DESTINATIONS = [
              "hours": 0.25, "cost": 0, "when": ["day", "evening"], "indoor": False, "fit": ["solo", "couple"],
              "note": "藤本壮介による白いメッシュの立体作品。宮浦港のそば"},
             {"name": "直島銭湯「I♥湯」", "area": "直島・宮浦", "kind": "onsen", "genres": ["art"], "niche": 3,
-             "hours": 1.0, "cost": 660, "when": ["evening", "night"], "indoor": True, "fit": ["friends", "solo"],
+             "hours": 1.0, "cost": 660, "when": ["evening", "night"], "indoor": True, "fit": ["friends", "solo"], "closed": [0],
              "note": "大竹伸朗が手がけた実際に入浴できる銭湯。午後から夜の営業で、月曜休み"},
             {"name": "豊島美術館", "area": "豊島", "kind": "museum", "genres": ["art", "nature"], "niche": 3,
              "hours": 1.5, "cost": 1800, "when": ["day"], "indoor": True, "fit": ["solo", "couple"], "booking": True,
+             "closed": [1],
              "note": "棚田を見下ろす丘に建つ水滴形の建物で、床から水が湧き出す作品を見る。日時指定予約制、火曜休館（冬期は火〜木休館）"},
             {"name": "豊島横尾館", "area": "豊島", "kind": "museum", "genres": ["art"], "niche": 4,
-             "hours": 0.75, "cost": 600, "when": ["day"], "indoor": True, "fit": ["solo", "friends"],
+             "hours": 0.75, "cost": 600, "when": ["day"], "indoor": True, "fit": ["solo", "friends"], "closed": [1],
              "note": "家浦の古民家を改修した横尾忠則の作品館。火曜休館"},
             {"name": "心臓音のアーカイブ", "area": "豊島", "kind": "museum", "genres": ["art", "beach"], "niche": 4,
-             "hours": 0.5, "cost": 600, "when": ["day"], "indoor": True, "fit": ["solo", "couple"],
+             "hours": 0.5, "cost": 600, "when": ["day"], "indoor": True, "fit": ["solo", "couple"], "closed": [1],
              "note": "唐櫃の浜辺に建つボルタンスキーの作品。世界中の人の心臓音を聴ける（自分の心臓音の録音は別料金）"},
             {"name": "豊島の棚田と唐櫃の清水", "area": "豊島", "kind": "nature", "genres": ["nature", "remote"], "niche": 4,
              "hours": 1.0, "cost": 0, "when": ["morning", "day", "evening"], "indoor": False,
@@ -250,10 +253,12 @@ DESTINATIONS = [
              "note": "源平合戦の古戦場を見下ろす台地状の山。四国霊場84番札所の屋島寺と、瀬戸内海を見渡す展望台。麓の駅から山上へシャトルバス"},
             {"name": "四国村ミウゼアム", "area": "屋島・牟礼", "kind": "museum", "genres": ["history", "art"], "niche": 3,
              "hours": 1.5, "cost": 1600, "when": ["day"], "indoor": False, "fit": ["family_adults", "solo"],
-             "note": "四国各地から移築した古民家や砂糖しめ小屋が並ぶ屋外博物館。安藤忠雄設計のギャラリーもある"},
+             "closed": [1],
+             "note": "四国各地から移築した古民家や砂糖しめ小屋が並ぶ屋外博物館。安藤忠雄設計のギャラリーもある。火曜休館"},
             {"name": "イサム・ノグチ庭園美術館", "area": "屋島・牟礼", "kind": "museum", "genres": ["art"], "niche": 4,
              "hours": 1.25, "cost": 2200, "when": ["day"], "indoor": False, "fit": ["solo", "couple"], "booking": True,
-             "note": "彫刻家が晩年にアトリエを構えた石の町・牟礼。見学は開館日が限られ、事前申込制のガイド付き"},
+             "closed": [0, 2, 4, 6],
+             "note": "彫刻家が晩年にアトリエを構えた石の町・牟礼。見学は火・木・土曜のみで、事前申込制のガイド付き"},
             {"name": "父母ヶ浜", "area": "西讃（三豊・観音寺）", "kind": "nature", "genres": ["nature", "beach"], "niche": 3,
              "hours": 1.5, "cost": 0, "when": ["evening"], "indoor": False, "fit": ["couple", "friends"],
              "note": "干潮と日没が重なる風の弱い夕方、潮だまりに空が映り込む遠浅の浜。JR詫間駅からバス・タクシー"},
@@ -372,10 +377,10 @@ DESTINATIONS = [
              "fit": ["family_kids", "family_adults", "couple", "solo"],
              "note": "勝山山頂の現存天守。ロープウェイ・リフトで上がる（料金は天守観覧券とロープウェイ往復の合計の目安）"},
             {"name": "萬翠荘", "area": "松山市街", "kind": "museum", "genres": ["history", "art"], "niche": 3,
-             "hours": 0.75, "cost": 300, "when": ["day"], "indoor": True, "fit": ["couple", "family_adults"],
+             "hours": 0.75, "cost": 300, "when": ["day"], "indoor": True, "fit": ["couple", "family_adults"], "closed": [0],
              "note": "大正時代に旧藩主が建てたフランス風の洋館。月曜休館"},
             {"name": "坂の上の雲ミュージアム", "area": "松山市街", "kind": "museum", "genres": ["history", "art"], "niche": 3,
-             "hours": 1.0, "cost": 400, "when": ["day"], "indoor": True, "fit": ["solo", "family_adults"],
+             "hours": 1.0, "cost": 400, "when": ["day"], "indoor": True, "fit": ["solo", "family_adults"], "closed": [0],
              "note": "司馬遼太郎の小説と松山ゆかりの人物を紹介する安藤忠雄設計の館。月曜休館"},
             {"name": "大街道・銀天街", "area": "松山市街", "kind": "shopping", "genres": ["town"], "niche": 2,
              "hours": 1.0, "cost": 0, "when": ["day", "evening"], "indoor": True, "fit": ["friends", "family_kids"],
@@ -599,7 +604,7 @@ DESTINATIONS = [
         "foods": [
             {"name": "カツオの塩たたき", "price": 1500, "meal": "dinner", "note": "藁で焼き上げて塩で食べる。ひろめ市場なら昼から"},
             {"name": "ウツボのたたき・唐揚げ", "price": 1000, "meal": "dinner", "note": "高知の居酒屋の定番"},
-            {"name": "屋台餃子", "price": 600, "meal": "dinner", "note": "高知市内の屋台で出る羽根つきの焼き餃子。飲んだ後の締めに"},
+            {"name": "屋台餃子", "price": 600, "meal": "dinner", "note": "高知市内の屋台で出る、皮をパリッと焼いた小ぶりの焼き餃子。飲んだ後の締めに"},
             {"name": "土佐の地酒", "price": 700, "meal": "dinner", "note": "辛口の酒が多い。献杯・返杯の酒文化"},
             {"name": "四万十川の天然うなぎ", "price": 4500, "meal": "lunch", "note": "中村周辺の川魚料理店で。天然ものは時価"},
             {"name": "川エビ・青のりの天ぷら", "price": 800, "meal": "lunch", "note": "四万十川でとれる手長エビとスジアオノリ"},
@@ -616,8 +621,8 @@ DESTINATIONS = [
              "note": "約60店の屋台が集まる屋内市場。カツオのたたきをつまみに昼から地酒を飲む人も多い"},
             {"name": "日曜市", "area": "高知市街", "kind": "market", "genres": ["gourmet", "town"], "niche": 2,
              "hours": 1.5, "cost": 0, "when": ["morning", "day"], "indoor": False,
-             "fit": ["family_adults", "couple", "solo"],
-             "note": "高知城下の追手筋に約1kmにわたって露店が並ぶ街路市。日曜の朝〜昼のみ"},
+             "fit": ["family_adults", "couple", "solo"], "closed": [0, 1, 2, 3, 4, 5],
+             "note": "高知城下の追手筋に約1.3kmにわたって約300の露店が並ぶ街路市。日曜の朝〜昼のみ"},
             {"name": "帯屋町周辺の飲み屋街", "area": "高知市街", "kind": "night", "genres": ["drink", "gourmet"], "niche": 3,
              "hours": 2.0, "cost": 0, "when": ["night"], "indoor": True, "fit": ["friends", "group", "solo"],
              "avoid": ["family_kids"],
@@ -646,8 +651,8 @@ DESTINATIONS = [
              "note": "約1kmの観光コースを歩く鍾乳洞。弥生時代の土器が石灰華に包まれた「神の壺」がある"},
             {"name": "香美市立やなせたかし記念館（アンパンマンミュージアム）", "area": "香美（土佐山田）", "kind": "museum",
              "genres": ["art"], "niche": 3, "hours": 1.5, "cost": 800, "when": ["day"], "indoor": True,
-             "fit": ["family_kids"],
-             "note": "作者の故郷に建つ記念館。原画の展示や大きなジオラマがある"},
+             "fit": ["family_kids"], "closed": [1],
+             "note": "作者の故郷に建つ記念館。原画の展示や大きなジオラマがある。火曜休館（祝日の場合は翌日）"},
             {"name": "四万十川の沈下橋めぐり", "area": "四万十川（中村）", "kind": "nature", "genres": ["nature", "activity"],
              "niche": 3, "hours": 3.0, "cost": 0, "when": ["morning", "day"], "indoor": False,
              "fit": ["couple", "friends", "solo"],
@@ -658,7 +663,8 @@ DESTINATIONS = [
              "note": "ガイド付きの半日ツアーで沈下橋をくぐる（料金は半日の目安）"},
             {"name": "いの町紙の博物館", "area": "いの・仁淀川", "kind": "museum", "genres": ["history", "art"], "niche": 4,
              "hours": 1.0, "cost": 500, "when": ["day"], "indoor": True, "fit": ["solo", "family_kids", "family_adults"],
-             "note": "土佐和紙の産地・いの町の博物館。紙すき体験（別料金）もできる。高知市中心部から路面電車の終点・伊野へ"},
+             "closed": [0],
+             "note": "土佐和紙の産地・いの町の博物館。紙すき体験（別料金）もできる。月曜休館。高知市中心部から路面電車の終点・伊野へ"},
         ],
         "tips": [
             "日曜市は日曜の朝〜昼だけ。日程に日曜を入れると見られる",
@@ -740,7 +746,7 @@ DESTINATIONS = [
         "foods": [
             {"name": "小豆島手延べそうめん", "price": 900, "meal": "lunch", "note": "ごま油を塗って延ばす島の特産。製麺所併設の店で"},
             {"name": "ひしお丼", "price": 1400, "meal": "lunch", "note": "島の醤油やもろみを使った丼。島内の各店がそれぞれの味で出す"},
-            {"name": "オリーブ牛・オリーブハマチ", "price": 3500, "meal": "dinner", "note": "オリーブの搾りかすを飼料に使う香川のブランド牛・魚"},
+            {"name": "オリーブ牛・オリーブハマチ", "price": 3500, "meal": "dinner", "note": "オリーブの搾りかす（牛）や葉（ハマチ）を飼料に加えて育てる香川のブランド牛・魚"},
             {"name": "醤油ソフトクリーム", "price": 400, "meal": "snack", "note": "醤油蔵の売店などで。キャラメルのような風味"},
             {"name": "小豆島の佃煮", "price": 500, "meal": "snack", "note": "醤油の産地ならではの佃煮。土産にも"},
             {"name": "オリーブの新漬け", "price": 600, "meal": "snack", "note": "秋に収穫した実を漬けた季節もの"},
@@ -897,7 +903,7 @@ DESTINATIONS = [
              "note": "街明かりの少ない岬の島。晴れた夜は海の上に星が広がる"},
             {"name": "大堂海岸", "area": "大月（大堂海岸）", "kind": "nature", "genres": ["nature"], "niche": 5,
              "hours": 1.5, "cost": 0, "when": ["day", "evening"], "indoor": False, "fit": ["couple", "solo", "friends"],
-             "note": "高さ100m前後の断崖が続く海岸。展望台から外洋と断崖を見下ろす"},
+             "note": "外洋に面して切り立った断崖が続く海岸。展望台から外洋と断崖を見下ろす"},
             {"name": "竜串海岸", "area": "竜串・足摺", "kind": "nature", "genres": ["nature", "beach"], "niche": 4,
              "hours": 1.0, "cost": 0, "when": ["morning", "day"], "indoor": False,
              "fit": ["family_kids", "couple", "friends"],
