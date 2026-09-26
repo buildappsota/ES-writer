@@ -15,7 +15,7 @@ from .constants import (
     RELATIONS,
 )
 from .engine import SCORE_LABELS
-from .planner import Day, Plan, fmt_time, lodging_label, maps_url, reverse_route
+from .planner import Day, Plan, fmt_time, lodging_label, maps_url, reverse_route, spot_query
 
 WEEKDAYS = "月火水木金土日"
 
@@ -80,10 +80,14 @@ def reasons_md(plan: Plan) -> str:
 
 def budget_summary_md(plan: Plan) -> str:
     c = plan.cond
-    usage = plan.total / c.budget_total * 100 if c.budget_total else 0
-    state = "予算オーバー" if plan.over_budget else f"予算の {usage:.0f}%"
-    return (f"**概算 {yen(plan.total)}**（1人あたり 約{yen(plan.per_person)}）／ 予算 {yen(c.budget_total)} → {state}"
-            f"　残り {yen(max(0, c.budget_total - plan.total))} はおみやげ・予備費に")
+    head = f"**概算 {yen(plan.total)}**（1人あたり 約{yen(plan.per_person)}）／ 予算 {yen(c.budget_total)} → "
+    if plan.over_budget:
+        body = head + f"**予算を約 {yen(plan.total - c.budget_total)} オーバー**"
+    else:
+        usage = plan.total / c.budget_total * 100 if c.budget_total else 0
+        body = head + f"予算の {usage:.0f}%　残り {yen(c.budget_total - plan.total)} はおみやげ・予備費に"
+    notes = [n for n in (plan.fallback_note, plan.tier_note) if n]
+    return "\n\n".join([body] + [f"※ {n}" for n in notes])
 
 
 def access_md(plan: Plan) -> str:
@@ -128,9 +132,8 @@ def highlights_md(plan: Plan) -> str:
     lines = []
     for s in plan.highlights:
         fee = "無料" if s["cost"] == 0 else f"約{yen(s['cost'])}"
-        q = f"{s['name']} {plan.dest['pref'] if plan.dest['region'] != 'overseas' else plan.dest['name']}"
         lines.append(f"- **{s['name']}**（{s['area']}・{NICHE_LABELS[s['niche']]}・{fee}）— {s['note']}"
-                     f"　[地図]({maps_url(q)})")
+                     f"　[地図]({maps_url(spot_query(s, plan.stop_of(s)))})")
     return "\n".join(lines)
 
 
@@ -263,8 +266,8 @@ def sections(plan: Plan, level: int, day_heading: str = "###", with_header: bool
     out[-1] = ("予算", budget_summary_md(plan) + "\n\n" + budget_table_md(plan))
     out.append(("アクセス", access_md(plan)))
     out.append(("宿", lodging_md(plan)))
-    if level == 2:
-        out.append(("見どころ候補", highlights_md(plan)))
+    if level in (2, 3):
+        out.append(("見どころ" if level == 3 else "見どころ候補", highlights_md(plan)))
     out.append(("食べたいもの", foods_md(plan)))
     if level >= 3:
         out.append(("旅程", days_md(plan, level, day_heading)))
@@ -315,19 +318,40 @@ def to_markdown(plan: Plan, level: int) -> str:
     return "\n".join(lines)
 
 
+CLAUDE_REQUESTS = {
+    1: ["行き先がこの条件（予算・日程・人数・関係性・好み）に本当に合っているかを、根拠つきで評価する",
+        "この行き先の概算費用（交通・宿・食事）を最新の情報で見積もり直す",
+        "時期的な注意点（休業・混雑・天候・イベント）を挙げる",
+        "旅程や店・宿は決めない。自分で考えるための材料だけを渡す"],
+    2: ["交通手段と所要時間・運賃を最新のダイヤ・運賃で確認し、より良い行き方があれば示す",
+        "宿のエリアとタイプの候補を、価格帯つきで 2〜3 通り挙げる（具体的な宿名までは決めなくてよい）",
+        "見どころ候補の営業状況・料金・定休日を確認し、成り立たないものを指摘する",
+        "日ごとの時間割は作らない。大枠の確認にとどめる"],
+    3: ["日ごとの流れ（午前・午後・夜に回る場所）が移動時間・営業時間の面で成り立つかを確認して直す",
+        "各日の食事の候補を、価格帯つきで挙げる",
+        "予算内に収まっているかを再計算し、超える場合は削る順番を提案する",
+        "分刻みの時間割までは作らない"],
+    4: ["各スポット・店・交通の営業日、営業時間、料金、運行ダイヤを確認し、成り立たない箇所を指摘して直す",
+        "移動時間に無理がある箇所を組み替える（旅のペースは維持）",
+        "雨の日の代案が実際に使えるかを確認する",
+        "予算内に収まっているかを再計算し、超える場合は削る順番を提案する"],
+    5: ["各スポット・店・交通の営業日、営業時間、料金、運行ダイヤを確認し、成り立たない箇所を指摘して直す",
+        "食事の具体的な店の候補と、宿の具体的な候補を価格帯つきで 2〜3 件ずつ挙げる",
+        "予約リストの各項目について、予約開始時期と方法を確認する",
+        "予算内に収まっているかを再計算し、超える場合は削る順番を提案する"],
+}
+
+
 def claude_prompt(plan: Plan, level: int) -> str:
-    """Claude.ai に貼って仕上げてもらうためのプロンプト。"""
-    body = to_markdown(plan, max(level, 4))
+    """Claude.ai に貼って仕上げてもらうためのプロンプト。決め込み度と同じ細かさで頼む。"""
+    body = to_markdown(plan, level)
+    requests = [f"{i}. {r}" for i, r in enumerate(CLAUDE_REQUESTS[level], 1)]
     return "\n".join([
         "あなたは国内外の旅行計画に詳しいトラベルプランナーです。",
-        "以下は、条件からランダムに自動生成した旅行プランの叩き台です。これを実際に行ける計画に仕上げてください。",
+        f"以下は、条件からランダムに自動生成した旅行プランの叩き台です（決め込み度：{DETAIL_LEVELS[level]}）。",
         "",
         "## お願いしたいこと",
-        "1. 各スポット・店・交通の営業日、営業時間、料金、運行ダイヤを確認し、成り立たない箇所を指摘して直す",
-        "2. 移動時間に無理がある箇所を組み替える（旅のペースは維持）",
-        "3. 食事の具体的な店の候補と、宿の具体的な候補を価格帯つきで 2〜3 件ずつ挙げる",
-        "4. 予算内に収まっているかを再計算し、超える場合は削る順番を提案する",
-        f"5. 決め込み度は「{DETAIL_LEVELS[level]}」。この細かさを大きく超えて決めすぎない",
+        *requests,
         "",
         "## 守ってほしいこと",
         "- 確認できない情報を断定しない。未確認のものは「要確認」と明記する",

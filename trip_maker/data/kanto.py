@@ -7,8 +7,10 @@ JR東海・JR西日本の新幹線定価（東京〜新大阪 14,720円、東京
 伊豆諸島開発（八丈島〜青ヶ島）、東京愛らんどシャトル、小笠原海運（おがさわら丸・ははじま丸）の運航形態、
 各自治体・観光協会・施設の公式案内（浅草寺、東京国立博物館、都立庭園、高徳院、長谷寺、建長寺、
 日光東照宮、箱根関所、岡田美術館、草津温泉観光協会、秩父観光協会、八丈島観光協会、青ヶ島村、小笠原村観光局など）。
-作成時は外部サイトの閲覧ができず、在来線・私鉄・離島航路の運賃、入場料・体験料、宿泊料の多くは
-2025年までの公表値と既知の運賃体系からの推計を含む。旅行前に各公式情報で最新の料金・運行状況を確認のこと。
+作成時・ファクトチェック時ともWeb検索・外部サイトの閲覧ができず、在来線・私鉄・離島航路の運賃、
+入場料・体験料、宿泊料の多くは2025年までの公表値と既知の運賃体系からの推計を含む（ファクトチェックでは
+経由ルートの運賃・所要が区間の合計と整合するか、交通手段の区分、定休日の反映を確認した）。
+旅行前に各公式情報で最新の料金・運行状況・営業日を確認のこと。
 """
 
 DESTINATIONS = [
@@ -89,11 +91,11 @@ DESTINATIONS = [
              "hours": 1.5, "cost": 150, "when": ["day"], "indoor": False, "fit": ["couple", "solo"],
              "note": "池の周りに各地の名石を配した回遊式庭園。周辺に焙煎所を兼ねたカフェが点在する"},
             {"name": "東京都復興記念館（横網町公園）", "area": "浅草・押上・清澄白河", "kind": "museum", "genres": ["history"], "niche": 4,
-             "hours": 0.75, "cost": 0, "when": ["day"], "indoor": True, "fit": ["solo", "family_adults"],
-             "note": "関東大震災と東京大空襲の被害と復興を伝える資料館。両国駅から徒歩。月曜休館"},
+             "hours": 0.75, "cost": 0, "when": ["day"], "indoor": True, "fit": ["solo", "family_adults"], "closed": [0],
+             "note": "関東大震災と東京大空襲の被害と復興を伝える資料館。両国駅から徒歩。月曜休館（祝日の場合は翌日）"},
             {"name": "東京国立博物館", "area": "上野・谷根千", "kind": "museum", "genres": ["art", "history"], "niche": 1,
-             "hours": 2.5, "cost": 1000, "when": ["day"], "indoor": True, "fit": ["solo", "family_adults", "couple"],
-             "note": "総合文化展（常設）で日本の美術・考古を通覧できる。特別展は別料金。月曜休館"},
+             "hours": 2.5, "cost": 1000, "when": ["day"], "indoor": True, "fit": ["solo", "family_adults", "couple"], "closed": [0],
+             "note": "総合文化展（常設）で日本の美術・考古を通覧できる。特別展は別料金。月曜休館（祝日の場合は翌平日）"},
             {"name": "アメ横商店街", "area": "上野・谷根千", "kind": "market", "genres": ["gourmet", "town", "drink"], "niche": 1,
              "hours": 1.0, "cost": 0, "when": ["day", "evening"], "indoor": False, "fit": ["friends", "group"],
              "note": "上野〜御徒町の高架沿いの商店街。乾物・菓子の店や食べ歩き、昼から飲める店が並ぶ"},
@@ -110,14 +112,14 @@ DESTINATIONS = [
              "hours": 1.0, "cost": 0, "when": ["day", "evening"], "indoor": False, "fit": ["solo", "couple"],
              "note": "佃煮の老舗が残る漁師町の名残。隣の月島のもんじゃ店と組み合わせやすい"},
             {"name": "皇居東御苑", "area": "銀座・築地・丸の内", "kind": "sight", "genres": ["history", "nature"], "niche": 2,
-             "hours": 1.5, "cost": 0, "when": ["morning", "day"], "indoor": False, "fit": ["family_adults", "solo"],
-             "note": "江戸城本丸跡の庭園で、天守台に上がれる。入園無料。月曜・金曜は休園"},
+             "hours": 1.5, "cost": 0, "when": ["morning", "day"], "indoor": False, "fit": ["family_adults", "solo"], "closed": [0, 4],
+             "note": "江戸城本丸跡の庭園で、天守台に上がれる。入園無料。月曜・金曜は休園（祝日は開園する場合がある）"},
             {"name": "明治神宮", "area": "新宿・原宿", "kind": "temple", "genres": ["history", "nature"], "niche": 1,
              "hours": 1.0, "cost": 0, "when": ["morning", "day"], "indoor": False, "fit": ["family_adults", "couple"],
              "note": "原宿駅近くの森の中の神社。朝の参拝は人が少なく静か"},
             {"name": "東京都庁展望室", "area": "新宿・原宿", "kind": "sight", "genres": ["town"], "niche": 2,
              "hours": 0.75, "cost": 0, "when": ["day", "evening", "night"], "indoor": True, "fit": ["family_kids", "solo"],
-             "note": "地上202mの無料展望室。晴れた日は富士山も見える。夜は都庁舎の壁面でプロジェクションマッピングが行われる"},
+             "note": "地上202mの無料展望室。晴れた日は富士山も見える。夜は都庁舎の壁面でプロジェクションマッピングが上映される（実施日・時間は東京都の案内で確認）"},
             {"name": "新宿ゴールデン街と思い出横丁", "area": "新宿・原宿", "kind": "night", "genres": ["drink", "gourmet"], "niche": 2,
              "hours": 2.5, "cost": 0, "when": ["night"], "indoor": True, "fit": ["friends", "solo"], "avoid": ["family_kids"],
              "note": "小さなバーが密集する一角と、線路沿いの焼き鳥横丁。席料（チャージ）を取る店が多い"},
@@ -201,8 +203,8 @@ DESTINATIONS = [
              "hours": 1.0, "cost": 400, "when": ["morning", "day"], "indoor": False, "fit": ["couple", "solo"],
              "note": "孟宗竹の林の中の禅寺。竹林を眺める茶席の抹茶は別料金。駅からバスで約10分"},
             {"name": "鎌倉国宝館", "area": "鎌倉駅周辺", "kind": "museum", "genres": ["history", "art"], "niche": 3,
-             "hours": 1.0, "cost": 400, "when": ["day"], "indoor": True, "fit": ["solo", "family_adults"],
-             "note": "鶴岡八幡宮の境内にある、鎌倉の寺社の仏像・寺宝の博物館。料金は展示により変わる。月曜休館"},
+             "hours": 1.0, "cost": 400, "when": ["day"], "indoor": True, "fit": ["solo", "family_adults"], "closed": [0],
+             "note": "鶴岡八幡宮の境内にある、鎌倉の寺社の仏像・寺宝の博物館。料金は展示により変わる。月曜休館（祝日の場合は翌日）"},
             {"name": "建長寺", "area": "北鎌倉", "kind": "temple", "genres": ["history"], "niche": 2,
              "hours": 1.0, "cost": 500, "when": ["morning", "day"], "indoor": False, "fit": ["family_adults", "solo"],
              "note": "鎌倉五山第一位の禅寺。境内の奥の半僧坊まで石段を上ると相模湾が見える"},
@@ -211,7 +213,7 @@ DESTINATIONS = [
              "note": "「あじさい寺」。6月のアジサイの時期は朝から行列ができる"},
             {"name": "天園ハイキングコース", "area": "北鎌倉", "kind": "activity", "genres": ["nature", "activity"], "niche": 4,
              "hours": 3.0, "cost": 0, "when": ["morning", "day"], "indoor": False, "fit": ["solo", "friends"],
-             "note": "建長寺の奥から鎌倉を囲む尾根道を歩き、瑞泉寺方面へ下りる。雨の後はぬかるむ。倒木で一部通行止めになることがある"},
+             "note": "建長寺の奥から鎌倉を囲む尾根道を歩き、瑞泉寺・獅子舞方面へ下りる。雨の後はぬかるむ。台風後の倒木などで通行止め区間が出るので、鎌倉市のハイキングコース情報で確認を"},
             {"name": "鎌倉大仏（高徳院）", "area": "長谷・稲村ヶ崎", "kind": "temple", "genres": ["history", "art"], "niche": 1,
              "hours": 0.5, "cost": 300, "when": ["morning", "day"], "indoor": False, "fit": ["family_kids", "family_adults"],
              "note": "屋外に座る国宝の阿弥陀如来坐像。江ノ電長谷駅から徒歩"},
@@ -439,8 +441,8 @@ DESTINATIONS = [
              "hours": 1.0, "cost": 0, "when": ["morning", "day"], "indoor": False, "fit": ["solo", "couple"],
              "note": "大谷川沿いの遊歩道に苔むした地蔵が並ぶ。東照宮から歩いて約20分"},
             {"name": "日光田母沢御用邸記念公園", "area": "日光山内", "kind": "museum", "genres": ["history", "art"], "niche": 3,
-             "hours": 1.5, "cost": 600, "when": ["day"], "indoor": True, "fit": ["family_adults", "solo"],
-             "note": "明治〜大正期の皇室の別邸。大規模な和風建築と庭園を見学できる。雨の日向き"},
+             "hours": 1.5, "cost": 600, "when": ["day"], "indoor": True, "fit": ["family_adults", "solo"], "closed": [1],
+             "note": "明治〜大正期の皇室の別邸。大規模な和風建築と庭園を見学できる。雨の日向き。火曜休園（祝日の場合は翌日）"},
             {"name": "華厳の滝", "area": "奥日光", "kind": "nature", "genres": ["nature"], "niche": 1,
              "hours": 0.75, "cost": 570, "when": ["day"], "indoor": False, "fit": ["family_kids", "family_adults", "group"],
              "note": "中禅寺湖から落ちる高さ約97mの滝。有料エレベーターで滝壺近くの観瀑台へ下りる"},
@@ -465,8 +467,8 @@ DESTINATIONS = [
              "hours": 1.5, "cost": 0, "when": ["day"], "indoor": False, "fit": ["solo", "couple", "friends"],
              "note": "鬼怒川上流の渓谷。駅から遊歩道で虹見の滝まで往復約40分。新緑と紅葉の時期が美しい"},
             {"name": "江戸ワンダーランド日光江戸村", "area": "鬼怒川温泉", "kind": "experience", "genres": ["history", "activity"], "niche": 2,
-             "hours": 4.0, "cost": 5800, "when": ["day"], "indoor": False, "fit": ["family_kids", "friends", "group"],
-             "note": "江戸の町並みを再現したテーマパーク。芝居・忍者ショーや変装体験（別料金）。定休日あり"},
+             "hours": 4.0, "cost": 5800, "when": ["day"], "indoor": False, "fit": ["family_kids", "friends", "group"], "closed": [2],
+             "note": "江戸の町並みを再現したテーマパーク。芝居・忍者ショーや変装体験（別料金）。水曜定休（祝日・繁忙期は営業）"},
         ],
         "tips": [
             "紅葉期（奥日光は10月上旬〜中旬、市街は下旬〜11月上旬）の週末はいろは坂が大渋滞。朝早くに上がるか平日に",
@@ -498,7 +500,7 @@ DESTINATIONS = [
         "access": {
             "sapporo": [
                 {"mode": "flight", "route": "札幌→新千歳→（飛行機）→羽田→東京→（北陸新幹線）→軽井沢→（路線バス）→草津温泉",
-                 "hours": 6.8, "cost": 23500},
+                 "hours": 6.8, "cost": 22000},
             ],
             "sendai": [
                 {"mode": "rail", "route": "仙台→（はやぶさ）→大宮→（北陸新幹線）→軽井沢→（路線バス）→草津温泉", "hours": 4.1, "cost": 17900},
@@ -574,7 +576,7 @@ DESTINATIONS = [
             {"name": "嫗仙の滝", "area": "草津郊外（六合）", "kind": "nature", "genres": ["nature"], "niche": 4,
              "hours": 1.5, "cost": 0, "when": ["day"], "indoor": False, "fit": ["solo", "friends"],
              "months": [5, 6, 7, 8, 9, 10, 11],
-             "note": "赤茶色の岩肌を落ちる滝。駐車場から山道を下って往復約40分。車が必要"},
+             "note": "赤茶色の岩肌を落ちる滝。駐車場から山道を下って往復約40分。車が必要。大雨の後は遊歩道が通行止めになることがあるので草津町の案内で確認を"},
             {"name": "チャツボミゴケ公園", "area": "草津郊外（六合）", "kind": "nature", "genres": ["nature"], "niche": 4,
              "hours": 1.5, "cost": 600, "when": ["day"], "indoor": False, "fit": ["solo", "couple"],
              "months": [5, 6, 7, 8, 9, 10, 11],
@@ -728,20 +730,24 @@ DESTINATIONS = [
                 {"mode": "flight", "route": "札幌→新千歳→（飛行機）→羽田→（ANA）→八丈島空港", "hours": 5.6, "cost": 27000},
             ],
             "sendai": [
-                {"mode": "rail", "route": "仙台→（はやぶさ）→東京→（京急・モノレール）→羽田→（ANA）→八丈島空港", "hours": 4.6, "cost": 26000},
+                {"mode": "flight", "route": "仙台→（はやぶさ）→東京→（京急・モノレール）→羽田→（ANA）→八丈島空港", "hours": 4.6, "cost": 26000},
+                {"mode": "ferry", "route": "仙台→（はやぶさ）→東京→竹芝→（東海汽船・夜行）→八丈島", "hours": 13.0, "cost": 21800, "overnight": True},
             ],
             "tokyo": [
                 {"mode": "flight", "route": "都心→羽田→（ANA・約55分）→八丈島空港", "hours": 2.6, "cost": 14500},
                 {"mode": "ferry", "route": "竹芝→（東海汽船の夜行大型客船）→八丈島（底土港または八重根港）", "hours": 11.0, "cost": 10000, "overnight": True},
             ],
             "nagoya": [
-                {"mode": "rail", "route": "名古屋→（のぞみ）→品川→（京急）→羽田→（ANA）→八丈島空港", "hours": 4.4, "cost": 25600},
+                {"mode": "flight", "route": "名古屋→（のぞみ）→品川→（京急）→羽田→（ANA）→八丈島空港", "hours": 4.4, "cost": 25600},
+                {"mode": "ferry", "route": "名古屋→（のぞみ）→東京→竹芝→（東海汽船・夜行）→八丈島", "hours": 13.0, "cost": 21500, "overnight": True},
             ],
             "osaka": [
-                {"mode": "rail", "route": "新大阪→（のぞみ）→品川→（京急）→羽田→（ANA）→八丈島空港", "hours": 5.5, "cost": 29000},
+                {"mode": "flight", "route": "新大阪→（のぞみ）→品川→（京急）→羽田→（ANA）→八丈島空港", "hours": 5.5, "cost": 29000},
+                {"mode": "ferry", "route": "新大阪→（のぞみ）→東京→竹芝→（東海汽船・夜行）→八丈島", "hours": 14.0, "cost": 24900, "overnight": True},
             ],
             "hiroshima": [
                 {"mode": "flight", "route": "広島→広島空港→（飛行機）→羽田→（ANA）→八丈島空港", "hours": 5.6, "cost": 29500},
+                {"mode": "ferry", "route": "広島→（のぞみ）→東京→竹芝→（東海汽船・夜行）→八丈島", "hours": 15.4, "cost": 30000, "overnight": True},
             ],
             "fukuoka": [
                 {"mode": "flight", "route": "博多→福岡空港→（飛行機）→羽田→（ANA）→八丈島空港", "hours": 5.5, "cost": 29000},

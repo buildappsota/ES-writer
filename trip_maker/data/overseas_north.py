@@ -3,12 +3,14 @@
 数値はすべて 2026年9月時点の公開情報に基づく目安。
 主な根拠：各航空会社（大韓航空・アシアナ航空・MIATモンゴル航空・キャセイパシフィック航空・中華航空・
 エバー航空ほか各LCC）の就航路線と運賃水準、KORAIL（KTX）・台湾高速鉄道の運賃、関釜フェリー、
-各国・地域の観光局と在日公館の入国案内、各施設の公式案内（いずれも2026年前半までに公表された内容）。
-本モジュールの作成時には検索上限と通信制限のため最新の運賃・為替・営業状況をオンラインで再確認できておらず、
-概算を多く含む。とくに K-ETA の免除期限、各路線の運航状況、入場料は予約前に必ず最新情報を確認すること。
+韓国法務部（K-ETA一時免除の延長告知 2025年12月23日・電子入国申告）、台湾内政部移民署（TWAC）、
+香港入境事務処・香港衛生署（電子たばこ規制）、国家遺産庁宮陵遺跡本部（ソウルの古宮）、各施設の公式案内。
+韓国・台湾・香港の入国ルール、ソウルの古宮の料金・休館日、為替は2026年9月に確認した。
+航空運賃・その他の入場料・施設の営業状況は再確認できていない概算を含むので、予約前に必ず最新情報を確認すること。
 
-換算レート（2026年9月時点の想定）：100ウォン≈10.7円、1台湾ドル≈4.9円、1香港ドル≈19円、
-1マカオ・パタカ≈18.5円、1,000トゥグルグ≈42円（1米ドル≈150円前後）。
+換算レート（2026年9月26日の日次レート、fawazahmed0/currency-api。9月中は±2%程度の変動）：
+100ウォン≈11.6円、1台湾ドル≈5.0円、1香港ドル≈20円、1マカオ・パタカ≈19.5円、1,000トゥグルグ≈44円
+（1米ドル≈157円）。
 航空運賃は往復の早期購入運賃（FSC）またはLCCの預け荷物なし運賃に諸税・燃油サーチャージ等を加えた額の半分に、
 空港アクセス（日本側・現地側）を足した片道の目安。
 """
@@ -88,28 +90,28 @@ DESTINATIONS = [
             "premium": {"type": "外資系・財閥系の高級ホテル", "price": 35000, "meals": 1},
         },
         "foods": [
-            {"name": "サムギョプサル", "price": 2500, "meal": "dinner",
+            {"name": "サムギョプサル", "price": 2700, "meal": "dinner",
              "note": "豚バラの焼肉。1人前約1万7千ウォン前後に酒・ご飯が加わる"},
-            {"name": "参鶏湯", "price": 2100, "meal": "lunch", "note": "若鶏に餅米や高麗人参を詰めて煮込んだスープ"},
-            {"name": "ソルロンタン", "price": 1500, "meal": "breakfast", "note": "牛骨を煮出した白いスープ。朝から開く店が多い"},
-            {"name": "冷麺", "price": 1700, "meal": "lunch", "note": "平壌式の水冷麺やビビン冷麺"},
-            {"name": "ピンデトッ（緑豆のチヂミ）", "price": 700, "meal": "snack", "note": "広蔵市場の屋台で揚げ焼きにする名物"},
-            {"name": "チキンとビール（チメク）", "price": 2000, "meal": "dinner",
+            {"name": "参鶏湯", "price": 2300, "meal": "lunch", "note": "若鶏に餅米や高麗人参を詰めて煮込んだスープ"},
+            {"name": "ソルロンタン", "price": 1600, "meal": "breakfast", "note": "牛骨を煮出した白いスープ。朝から開く店が多い"},
+            {"name": "冷麺", "price": 1800, "meal": "lunch", "note": "平壌式の水冷麺やビビン冷麺"},
+            {"name": "ピンデトッ（緑豆のチヂミ）", "price": 750, "meal": "snack", "note": "広蔵市場の屋台で揚げ焼きにする名物"},
+            {"name": "チキンとビール（チメク）", "price": 2200, "meal": "dinner",
              "note": "フライドチキン1羽を2人で分ける目安。漢江公園への出前も定番"},
-            {"name": "カンジャンケジャン", "price": 4500, "meal": "dinner", "note": "生のワタリガニの醤油漬け。ご飯に身を混ぜて食べる"},
+            {"name": "カンジャンケジャン", "price": 4900, "meal": "dinner", "note": "生のワタリガニの醤油漬け。ご飯に身を混ぜて食べる"},
         ],
         "spots": [
             {"name": "景福宮", "area": "鍾路・北村", "kind": "temple", "genres": ["history"], "niche": 1,
-             "hours": 2.0, "cost": 320, "when": ["morning", "day"], "indoor": False,
+             "hours": 2.0, "cost": 350, "when": ["morning", "day"], "indoor": False,
              "fit": ["family_adults", "couple"], "closed": [1],
              "note": "朝鮮王朝の正宮。門前で守門将の交代儀式がある。韓服を着ると入場無料。火曜休み"},
             {"name": "北村韓屋村", "area": "鍾路・北村", "kind": "sight", "genres": ["history", "town"], "niche": 1,
-             "hours": 1.0, "cost": 0, "when": ["morning", "day"], "indoor": False, "fit": ["couple", "friends"],
-             "note": "瓦屋根の韓屋が並ぶ住宅街。住民保護のため観光客の立ち入り時間を制限している区域がある"},
+             "hours": 1.0, "cost": 0, "when": ["day"], "indoor": False, "fit": ["couple", "friends"],
+             "note": "瓦屋根の韓屋が並ぶ住宅街。北村路11キル一帯（レッドゾーン）は観光客の立ち入りが10〜17時に限られ、違反は罰金"},
             {"name": "昌徳宮と後苑", "area": "鍾路・北村", "kind": "temple", "genres": ["history", "nature"], "niche": 2,
-             "hours": 2.5, "cost": 850, "when": ["morning", "day"], "indoor": False,
+             "hours": 2.5, "cost": 930, "when": ["morning", "day"], "indoor": False,
              "fit": ["family_adults", "solo"], "closed": [0], "booking": True,
-             "note": "世界遺産の宮殿。王家の庭園・後苑は時間指定のガイドツアー制で予約推奨。月曜休み"},
+             "note": "世界遺産の宮殿。王家の庭園・後苑は時間指定のガイドツアー制（1回100人、半数はオンライン予約）。料金は宮殿と後苑の合計。月曜休み"},
             {"name": "広蔵市場", "area": "鍾路・北村", "kind": "market", "genres": ["gourmet"], "niche": 1,
              "hours": 1.0, "cost": 0, "when": ["day", "evening"], "indoor": True, "fit": ["friends", "solo"],
              "note": "アーケード内にピンデトッ、麻薬キンパ、ユッケの屋台が並ぶ"},
@@ -121,7 +123,7 @@ DESTINATIONS = [
              "hours": 2.0, "cost": 0, "when": ["day", "evening", "night"], "indoor": False, "fit": ["friends"],
              "note": "コスメ店と両替所が集まる繁華街。夕方から通りに屋台が並ぶ"},
             {"name": "Nソウルタワー", "area": "明洞・南山・龍山", "kind": "sight", "genres": ["town", "nature"], "niche": 1,
-             "hours": 1.5, "cost": 2300, "when": ["evening", "night"], "indoor": True,
+             "hours": 1.5, "cost": 2400, "when": ["evening", "night"], "indoor": True,
              "fit": ["couple", "family_kids"],
              "note": "南山山頂のタワー。料金は展望台の目安（変動あり）。ケーブルカーやバスで上がる"},
             {"name": "国立中央博物館", "area": "明洞・南山・龍山", "kind": "museum", "genres": ["history", "art"], "niche": 3,
@@ -156,17 +158,18 @@ DESTINATIONS = [
             "冬（12〜2月）は最低気温が−10℃前後まで下がる日がある",
         ],
         "nearby": [
-            {"id": "busan", "hours": 3.0, "cost": 6400, "route": "ソウル駅→（KTX）→釜山駅"},
-            {"id": "jeju", "hours": 3.0, "cost": 7500, "route": "ソウル→（地下鉄）→金浦空港→（国内線）→済州"},
+            {"id": "busan", "hours": 3.0, "cost": 6900, "route": "ソウル駅→（KTX）→釜山駅"},
+            {"id": "jeju", "hours": 3.0, "cost": 8000, "route": "ソウル→（地下鉄）→金浦空港→（国内線）→済州"},
             {"id": "ulaanbaatar", "hours": 7.0, "cost": 35000,
              "route": "ソウル→（空港鉄道）→仁川空港→（直行便）→ウランバートル"},
         ],
         "notes_overseas": (
             "パスポート必須（残存期間は滞在日数以上が目安）。日本国籍者は観光90日以内ならビザ不要。"
-            "電子渡航認証K-ETAは日本国籍者に対して一時免除措置が続いてきたが、2026年時点の適用期限は出発前に要確認"
-            "（免除対象外の場合は搭乗72時間前までにオンライン申請、手数料1万ウォン）。"
-            "入国時は紙の入国カード、または事前にオンラインの電子入国申告（e-Arrival Card）を提出。"
-            "通貨は韓国ウォン（100ウォン≈10.7円）。クレジットカードが広く使え、交通カード（T-money等）が便利。"
+            "電子渡航認証K-ETAは日本国籍者について一時免除中（韓国法務部の告知で2026年12月31日まで延長。"
+            "2027年以降の渡航は免除の継続を要確認）。"
+            "免除期間中は到着前3日以内に公式サイト（e-arrivalcard.go.kr）で電子入国申告（e-Arrival Card、無料）を提出する"
+            "（任意でK-ETAを1万ウォンで取得した場合は不要）。"
+            "通貨は韓国ウォン（100ウォン≈11.6円）。クレジットカードが広く使え、交通カード（T-money等）が便利。"
             "時差なし。電圧220V・プラグはC/SEタイプで変換プラグが必要。"
         ),
     },
@@ -244,11 +247,11 @@ DESTINATIONS = [
             "premium": {"type": "海雲台のオーシャンビュー高級ホテル", "price": 30000, "meals": 1},
         },
         "foods": [
-            {"name": "テジクッパ", "price": 1200, "meal": "breakfast", "note": "豚骨スープにご飯を入れて食べる釜山の定番"},
-            {"name": "ミルミョン（小麦冷麺）", "price": 1000, "meal": "lunch", "note": "小麦粉とでんぷんの麺を使う釜山式の冷麺"},
-            {"name": "チャガルチ市場の刺身", "price": 4300, "meal": "dinner", "note": "1階で魚を選び2階の食堂で食べる。席料・薬味代が別"},
-            {"name": "ナッコプセ", "price": 1600, "meal": "lunch", "note": "テナガダコ・ホルモン・エビの辛い鍋"},
-            {"name": "貝焼き（チョゲグイ）", "price": 4000, "meal": "dinner", "note": "海沿いの店で貝を網焼きにする。2人以上で"},
+            {"name": "テジクッパ", "price": 1300, "meal": "breakfast", "note": "豚骨スープにご飯を入れて食べる釜山の定番"},
+            {"name": "ミルミョン（小麦冷麺）", "price": 1100, "meal": "lunch", "note": "小麦粉とでんぷんの麺を使う釜山式の冷麺"},
+            {"name": "チャガルチ市場の刺身", "price": 4700, "meal": "dinner", "note": "1階で魚を選び2階の食堂で食べる。席料・薬味代が別"},
+            {"name": "ナッコプセ", "price": 1700, "meal": "lunch", "note": "テナガダコ・ホルモン・エビの辛い鍋"},
+            {"name": "貝焼き（チョゲグイ）", "price": 4300, "meal": "dinner", "note": "海沿いの店で貝を網焼きにする。2人以上で"},
             {"name": "シアホットク", "price": 250, "meal": "snack", "note": "ナッツ入りの揚げ焼きホットク。国際市場・BIFF広場の屋台"},
             {"name": "オムク（練り物）", "price": 200, "meal": "snack", "note": "釜山は練り物の本場。屋台で串に刺したものを"},
         ],
@@ -258,7 +261,7 @@ DESTINATIONS = [
              "fit": ["couple", "family_kids"],
              "note": "高層ビルが並ぶ都市型ビーチ。遊泳は夏季のみ、それ以外は浜辺の散歩に"},
             {"name": "海雲台ブルーラインパーク", "area": "海雲台・機張", "kind": "activity", "genres": ["nature", "beach"],
-             "niche": 2, "hours": 1.5, "cost": 1900, "when": ["day", "evening"], "indoor": False,
+             "niche": 2, "hours": 1.5, "cost": 2000, "when": ["day", "evening"], "indoor": False,
              "fit": ["couple", "family_kids"], "booking": True,
              "note": "旧線路を走る海沿いの小型カプセルとビーチトレイン。カプセルは混むので事前予約推奨（料金は1人あたりの目安）"},
             {"name": "海東龍宮寺", "area": "海雲台・機張", "kind": "temple", "genres": ["history", "nature"], "niche": 2,
@@ -283,7 +286,7 @@ DESTINATIONS = [
              "hours": 1.5, "cost": 0, "when": ["day"], "indoor": False, "fit": ["couple", "friends"],
              "note": "斜面にカラフルな家とアート作品が並ぶ集落。住民が暮らす地域なので静かに"},
             {"name": "太宗台", "area": "南浦洞・影島", "kind": "nature", "genres": ["nature"], "niche": 3,
-             "hours": 2.0, "cost": 430, "when": ["day"], "indoor": False,
+             "hours": 2.0, "cost": 460, "when": ["day"], "indoor": False,
              "fit": ["family_adults", "family_kids"],
              "note": "影島南端の断崖と灯台。園内は周遊列車（ダヌビ）で回れる。料金は列車代"},
             {"name": "ヒンヨウル文化村", "area": "南浦洞・影島", "kind": "sight", "genres": ["town", "nature"], "niche": 3,
@@ -294,7 +297,7 @@ DESTINATIONS = [
              "fit": ["friends", "group"],
              "note": "地下鉄の乗換駅を中心にした繁華街。テジクッパ通りや屋台、飲み屋が集まる"},
             {"name": "東莱温泉", "area": "西面・東莱", "kind": "onsen", "genres": ["onsen", "history"], "niche": 3,
-             "hours": 1.5, "cost": 1000, "when": ["day", "evening"], "indoor": True,
+             "hours": 1.5, "cost": 1100, "when": ["day", "evening"], "indoor": True,
              "fit": ["family_adults", "solo"],
              "note": "古くから知られる温泉街。無料の足湯と、銭湯形式の温泉施設がある（料金は入浴の目安）"},
             {"name": "梵魚寺", "area": "西面・東莱", "kind": "temple", "genres": ["history", "nature"], "niche": 3,
@@ -312,17 +315,18 @@ DESTINATIONS = [
             "飛行機を使わずに行くなら、下関から関釜フェリー（夜行）で渡れる",
         ],
         "nearby": [
-            {"id": "seoul", "hours": 3.0, "cost": 6400, "route": "釜山駅→（KTX）→ソウル駅"},
-            {"id": "jeju", "hours": 2.5, "cost": 7000, "route": "釜山→（軽電鉄）→金海空港→（国内線）→済州"},
+            {"id": "seoul", "hours": 3.0, "cost": 6900, "route": "釜山駅→（KTX）→ソウル駅"},
+            {"id": "jeju", "hours": 2.5, "cost": 7600, "route": "釜山→（軽電鉄）→金海空港→（国内線）→済州"},
             {"id": "fukuoka_city", "hours": 3.8, "cost": 10500,
              "route": "釜山→金海空港→（直行便）→福岡空港→（地下鉄）→博多"},
         ],
         "notes_overseas": (
             "パスポート必須（残存期間は滞在日数以上が目安）。日本国籍者は観光90日以内ならビザ不要。"
-            "電子渡航認証K-ETAは日本国籍者に対して一時免除措置が続いてきたが、2026年時点の適用期限は出発前に要確認"
-            "（免除対象外の場合は搭乗72時間前までにオンライン申請、手数料1万ウォン）。"
-            "入国時は紙の入国カード、または事前にオンラインの電子入国申告（e-Arrival Card）を提出。"
-            "通貨は韓国ウォン（100ウォン≈10.7円）。クレジットカードが広く使え、交通カード（T-money等）が便利。"
+            "電子渡航認証K-ETAは日本国籍者について一時免除中（韓国法務部の告知で2026年12月31日まで延長。"
+            "2027年以降の渡航は免除の継続を要確認）。"
+            "免除期間中は到着前3日以内に公式サイト（e-arrivalcard.go.kr）で電子入国申告（e-Arrival Card、無料）を提出する"
+            "（任意でK-ETAを1万ウォンで取得した場合は不要）。"
+            "通貨は韓国ウォン（100ウォン≈11.6円）。クレジットカードが広く使え、交通カード（T-money等）が便利。"
             "時差なし。電圧220V・プラグはC/SEタイプで変換プラグが必要。"
         ),
     },
@@ -341,7 +345,7 @@ DESTINATIONS = [
         "avoid_months": [],
         "min_nights": 2,
         "ideal_nights": [2, 4],
-        "fit": {"solo": 1, "friends": 3, "couple": 3, "family_kids": 3, "family_adults": 3, "group": 2},
+        "fit": {"solo": 2, "friends": 3, "couple": 3, "family_kids": 3, "family_adults": 3, "group": 2},
         "price_level": 1.1,
         "tz_offset": 0,
         "access": {
@@ -394,24 +398,24 @@ DESTINATIONS = [
             "premium": {"type": "中文リゾートの高級ホテル", "price": 30000, "meals": 1},
         },
         "foods": [
-            {"name": "黒豚焼肉", "price": 3500, "meal": "dinner", "note": "厚切りの済州黒豚をイワシの塩辛のたれで"},
-            {"name": "アワビ粥（チョンボクチュク）", "price": 1600, "meal": "breakfast", "note": "肝を入れた緑がかった粥"},
-            {"name": "ヘムルトゥッペギ", "price": 1600, "meal": "lunch", "note": "アワビや貝がたっぷり入った海鮮味噌鍋"},
-            {"name": "コギグクス", "price": 1100, "meal": "lunch", "note": "豚骨スープに茹で豚をのせた済州の麺"},
-            {"name": "太刀魚料理（カルチ）", "price": 4500, "meal": "dinner", "note": "太刀魚の煮付けや塩焼き。2人前からの店が多い"},
-            {"name": "ハルラボン（柑橘）のジュース・スイーツ", "price": 650, "meal": "snack", "note": "済州特産の大型柑橘"},
-            {"name": "牛島のピーナッツアイス", "price": 550, "meal": "snack", "note": "牛島産ピーナッツをのせたソフトクリーム"},
+            {"name": "黒豚焼肉", "price": 3800, "meal": "dinner", "note": "厚切りの済州黒豚をイワシの塩辛のたれで"},
+            {"name": "アワビ粥（チョンボクチュク）", "price": 1700, "meal": "breakfast", "note": "肝を入れた緑がかった粥"},
+            {"name": "ヘムルトゥッペギ", "price": 1700, "meal": "lunch", "note": "アワビや貝がたっぷり入った海鮮味噌鍋"},
+            {"name": "コギグクス", "price": 1200, "meal": "lunch", "note": "豚骨スープに茹で豚をのせた済州の麺"},
+            {"name": "太刀魚料理（カルチ）", "price": 4900, "meal": "dinner", "note": "太刀魚の煮付けや塩焼き。2人前からの店が多い"},
+            {"name": "ハルラボン（柑橘）のジュース・スイーツ", "price": 700, "meal": "snack", "note": "済州特産の大型柑橘"},
+            {"name": "牛島のピーナッツアイス", "price": 600, "meal": "snack", "note": "牛島産ピーナッツをのせたソフトクリーム"},
         ],
         "spots": [
             {"name": "城山日出峰", "area": "済州市・東部", "kind": "nature", "genres": ["nature"], "niche": 1,
-             "hours": 1.5, "cost": 550, "when": ["morning", "day"], "indoor": False,
+             "hours": 1.5, "cost": 580, "when": ["morning", "day"], "indoor": False,
              "fit": ["family_adults", "couple"],
              "note": "海辺にそびえる火山の噴火口（世界自然遺産）。頂上まで往復約1時間。月1回の休業日あり"},
             {"name": "牛島", "area": "済州市・東部", "kind": "nature", "genres": ["beach", "nature", "activity"], "niche": 2,
-             "hours": 4.0, "cost": 1100, "when": ["day"], "indoor": False, "fit": ["couple", "friends"],
+             "hours": 4.0, "cost": 1200, "when": ["day"], "indoor": False, "fit": ["couple", "friends"],
              "note": "城山浦港から船で約15分。レンタカーは渡れないので電動自転車や島内バスで一周（料金は往復船代）"},
             {"name": "海女博物館", "area": "済州市・東部", "kind": "museum", "genres": ["history"], "niche": 4,
-             "hours": 1.0, "cost": 120, "when": ["day"], "indoor": True, "fit": ["solo", "family_adults"],
+             "hours": 1.0, "cost": 130, "when": ["day"], "indoor": True, "fit": ["solo", "family_adults"],
              "closed": [0],
              "note": "素潜りでアワビやサザエを獲る済州の海女の暮らしと道具を紹介。月曜休み"},
             {"name": "ダランシオルム", "area": "済州市・東部", "kind": "nature", "genres": ["nature", "activity"], "niche": 4,
@@ -430,11 +434,11 @@ DESTINATIONS = [
              "booking": True,
              "note": "韓国最高峰。山頂の白鹿潭へ登る城板岳・観音寺コースは事前予約制で往復8〜9時間。予約不要の霊室コースは山頂手前まで"},
             {"name": "天地淵瀑布", "area": "西帰浦・南部", "kind": "nature", "genres": ["nature"], "niche": 2,
-             "hours": 1.0, "cost": 210, "when": ["day", "evening", "night"], "indoor": False,
+             "hours": 1.0, "cost": 230, "when": ["day", "evening", "night"], "indoor": False,
              "fit": ["couple", "family_adults"],
              "note": "西帰浦港近くの滝。夜も開いていて遊歩道がライトアップされる"},
             {"name": "柱状節理帯", "area": "西帰浦・南部", "kind": "nature", "genres": ["nature"], "niche": 2,
-             "hours": 0.75, "cost": 210, "when": ["day"], "indoor": False, "fit": ["family_kids", "family_adults"],
+             "hours": 0.75, "cost": 230, "when": ["day"], "indoor": False, "fit": ["family_kids", "family_adults"],
              "note": "溶岩が冷えてできた六角形の石柱が並ぶ海岸"},
             {"name": "西帰浦毎日オルレ市場", "area": "西帰浦・南部", "kind": "market", "genres": ["gourmet", "town"],
              "niche": 3, "hours": 1.0, "cost": 0, "when": ["day", "evening", "night"], "indoor": True,
@@ -445,7 +449,7 @@ DESTINATIONS = [
              "fit": ["solo", "couple"],
              "note": "外石頭から海沿いを西へ歩く人気の区間（全長約17km）。途中で切り上げてバスやタクシーで戻れる"},
             {"name": "本態博物館", "area": "西部", "kind": "museum", "genres": ["art"], "niche": 3,
-             "hours": 1.5, "cost": 2100, "when": ["day"], "indoor": True, "fit": ["couple", "solo"],
+             "hours": 1.5, "cost": 2300, "when": ["day"], "indoor": True, "fit": ["couple", "solo"],
              "note": "安藤忠雄設計の建物で、韓国の伝統工芸と現代美術を展示"},
             {"name": "オソルロック ティーミュージアム", "area": "西部", "kind": "museum", "genres": ["gourmet"], "niche": 2,
              "hours": 1.0, "cost": 0, "when": ["day"], "indoor": True, "fit": ["family_adults", "couple"],
@@ -460,15 +464,16 @@ DESTINATIONS = [
             "日本からの直行便は少ないので、ソウル（金浦）や釜山と組み合わせると便を選びやすい",
         ],
         "nearby": [
-            {"id": "seoul", "hours": 3.0, "cost": 7500, "route": "済州空港→（国内線）→金浦空港→（地下鉄）→ソウル中心部"},
-            {"id": "busan", "hours": 2.5, "cost": 7000, "route": "済州空港→（国内線）→金海空港→（軽電鉄・地下鉄）→西面"},
+            {"id": "seoul", "hours": 3.0, "cost": 8000, "route": "済州空港→（国内線）→金浦空港→（地下鉄）→ソウル中心部"},
+            {"id": "busan", "hours": 2.5, "cost": 7600, "route": "済州空港→（国内線）→金海空港→（軽電鉄・地下鉄）→西面"},
         ],
         "notes_overseas": (
             "パスポート必須（残存期間は滞在日数以上が目安）。日本国籍者は観光90日以内ならビザ不要。"
-            "電子渡航認証K-ETAは日本国籍者に対して一時免除措置が続いてきたが、2026年時点の適用期限は出発前に要確認"
-            "（免除対象外の場合は搭乗72時間前までにオンライン申請、手数料1万ウォン）。"
-            "入国時は紙の入国カード、または事前にオンラインの電子入国申告（e-Arrival Card）を提出。"
-            "通貨は韓国ウォン（100ウォン≈10.7円）。クレジットカードが広く使え、交通カード（T-money等）が便利。"
+            "電子渡航認証K-ETAは日本国籍者について一時免除中（韓国法務部の告知で2026年12月31日まで延長。"
+            "2027年以降の渡航は免除の継続を要確認）。"
+            "免除期間中は到着前3日以内に公式サイト（e-arrivalcard.go.kr）で電子入国申告（e-Arrival Card、無料）を提出する"
+            "（任意でK-ETAを1万ウォンで取得した場合は不要）。"
+            "通貨は韓国ウォン（100ウォン≈11.6円）。クレジットカードが広く使え、交通カード（T-money等）が便利。"
             "時差なし。電圧220V・プラグはC/SEタイプで変換プラグが必要。"
         ),
     },
@@ -616,10 +621,11 @@ DESTINATIONS = [
             {"id": "okinawa_main", "hours": 4.5, "cost": 13000, "route": "台北→（空港MRT）→桃園空港→（直行便）→那覇"},
         ],
         "notes_overseas": (
-            "パスポート必須（残存期間は滞在日数以上が目安）。日本国籍者は観光90日以内ならビザ不要。"
-            "入国カードは事前のオンライン申請（Taiwan Arrival Card）が基本。"
-            "肉製品（肉まん・ジャーキー等）の持ち込みは高額の罰金対象。"
-            "通貨は新台湾ドル（1元≈4.9円）。夜市や小さな食堂は現金のみの店が多い。"
+            "パスポート必須（日本国籍者は滞在予定期間中有効であればよい）。日本国籍者は観光90日以内ならビザ不要。"
+            "紙の入国カードは2025年10月1日に廃止され、到着前にオンライン入国カード（TWAC、無料、"
+            "公式サイトは twac.immigration.gov.tw）の登録が必須。"
+            "肉製品（肉まん・ジャーキー等）の持ち込みは高額の罰金対象。電子たばこは持ち込み禁止。"
+            "通貨は新台湾ドル（1元≈5.0円）。夜市や小さな食堂は現金のみの店が多い。"
             "時差−1時間。電圧110V・プラグはAタイプで、日本の電化製品はほぼそのまま使える。"
         ),
     },
@@ -760,10 +766,11 @@ DESTINATIONS = [
             {"id": "taipei", "hours": 2.0, "cost": 7000, "route": "台南・左営（高雄）→（台湾高速鉄道）→台北"},
         ],
         "notes_overseas": (
-            "パスポート必須（残存期間は滞在日数以上が目安）。日本国籍者は観光90日以内ならビザ不要。"
-            "入国カードは事前のオンライン申請（Taiwan Arrival Card）が基本。"
-            "肉製品（肉まん・ジャーキー等）の持ち込みは高額の罰金対象。"
-            "通貨は新台湾ドル（1元≈4.9円）。夜市や小さな食堂は現金のみの店が多い。"
+            "パスポート必須（日本国籍者は滞在予定期間中有効であればよい）。日本国籍者は観光90日以内ならビザ不要。"
+            "紙の入国カードは2025年10月1日に廃止され、到着前にオンライン入国カード（TWAC、無料、"
+            "公式サイトは twac.immigration.gov.tw）の登録が必須。"
+            "肉製品（肉まん・ジャーキー等）の持ち込みは高額の罰金対象。電子たばこは持ち込み禁止。"
+            "通貨は新台湾ドル（1元≈5.0円）。夜市や小さな食堂は現金のみの店が多い。"
             "時差−1時間。電圧110V・プラグはAタイプで、日本の電化製品はほぼそのまま使える。"
         ),
     },
@@ -874,11 +881,11 @@ DESTINATIONS = [
              "hours": 1.0, "cost": 0, "when": ["night"], "indoor": False, "fit": ["friends", "solo"],
              "note": "露店と屋外の海鮮食堂が並ぶ夜市。占いの屋台も"},
             {"name": "香港故宮文化博物館", "area": "九龍", "kind": "museum", "genres": ["history", "art"], "niche": 3,
-             "hours": 2.0, "cost": 1000, "when": ["day"], "indoor": True, "fit": ["family_adults", "solo"],
+             "hours": 2.0, "cost": 1200, "when": ["day"], "indoor": True, "fit": ["family_adults", "solo"],
              "closed": [1],
              "note": "北京の故宮博物院の文物を展示する西九龍の博物館（特別展は別料金）。火曜休館"},
             {"name": "天壇大仏とゴンピン360", "area": "ランタオ島", "kind": "temple", "genres": ["history", "nature"],
-             "niche": 2, "hours": 4.0, "cost": 5100, "when": ["day"], "indoor": False,
+             "niche": 2, "hours": 4.0, "cost": 5400, "when": ["day"], "indoor": False,
              "fit": ["family_adults", "family_kids"],
              "note": "ロープウェイで山上の寶蓮寺と大仏へ（料金は往復）。強風時や点検期間は運休"},
             {"name": "大澳", "area": "ランタオ島", "kind": "sight", "genres": ["town", "history"], "niche": 4,
@@ -907,7 +914,8 @@ DESTINATIONS = [
         "notes_overseas": (
             "パスポート必須（香港は滞在日数＋1か月以上の残存期間が目安）。日本国籍者は香港・マカオとも観光90日以内ならビザ不要。"
             "香港とマカオの間の移動にも出入境審査がある。"
-            "通貨は香港ドル（1HK$≈19円）とマカオ・パタカ（1MOP≈18.5円、マカオでは香港ドルもほぼ等価で使える）。"
+            "電子たばこ・加熱式たばこは香港への持ち込みが禁止（2026年4月30日からは公共の場での所持も罰金対象）。"
+            "通貨は香港ドル（1HK$≈20円）とマカオ・パタカ（1MOP≈19.5円、マカオでは香港ドルもほぼ等価で使える）。"
             "時差−1時間。電圧220V・プラグはBFタイプ中心（マカオはほかの形状もある）で変換プラグが必要。"
         ),
     },
@@ -1050,7 +1058,7 @@ DESTINATIONS = [
         ],
         "notes_overseas": (
             "パスポート必須（残存6か月以上が目安）。日本国籍者は30日以内の滞在ならビザ不要。"
-            "通貨はトゥグルグ（1,000MNT≈42円）。市内はカードが使える店が多いが、郊外やゲルキャンプでは現金を用意。"
+            "通貨はトゥグルグ（1,000MNT≈44円）。市内はカードが使える店が多いが、郊外やゲルキャンプでは現金を用意。"
             "時差−1時間（サマータイムなし）。電圧220V・プラグはC/SEタイプで変換プラグが必要。"
         ),
     },

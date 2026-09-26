@@ -1,16 +1,17 @@
 """海外（東南アジア・グアム・ハワイ）の行き先データ。
 
 数値は 2026年9月時点の公開情報に基づく目安（大人 1 名・通常期）。
-円換算の想定レート：1米ドル＝150円、1タイ・バーツ＝4.6円、1シンガポール・ドル＝115円、
-1万ベトナム・ドン＝57円、1万インドネシア・ルピア＝92円。
-（本データの作成時にはウェブで最新レートを照会できなかったため、2025〜2026年の水準から置いた概算。
-為替の変動で円換算額は大きく変わる。）
-主な出典：各航空会社（JAL・ANA・タイ国際航空・ベトナム航空・シンガポール航空・ガルーダ・インドネシア航空・
-ユナイテッド航空・ZIPAIR 等）の就航路線と運賃の相場、各国政府・大使館の入国案内、各施設の公式料金。
+円換算レート（2026年9月26日の参考レート）：1米ドル＝157円、1タイ・バーツ＝4.7円、1シンガポール・ドル＝123円、
+1万ベトナム・ドン＝61円、1万インドネシア・ルピア＝88円。為替の変動で円換算額は変わる。
+時差（tz_offset＝現地時間−日本時間）：本モジュールの行き先はいずれも夏時間（サマータイム）を実施しておらず、
+時差は通年一定（ハワイも米本土と違って夏時間なし）。
+主な出典：就航路線は2026年9月時点の航空路線データ（flightsfrom.com の集計）と各航空会社の路線、
+入国条件はタイ国政府観光庁（TAT）・シンガポール ICA・各国政府の案内（2026年9月確認）、
+入場料は王宮・ワット・ポー・TAT・ガーデンズ・バイ・ザ・ベイ・マンダイ・ホイアン遺産保存センター・ダナン観光局・
+文廟・ホアロー収容所・ハナウマ湾などの公式情報（2026年9月確認）。
 航空運賃は「エコノミー往復（大手は早割・燃油サーチャージ込み、LCC は手荷物なしの運賃＋諸費用）の半額」を片道として計上し、
 日本国内の空港までの交通費を加えた。国内ハブの空港アクセスと新幹線運賃は国内モジュールの水準にそろえた。
-注意：このモジュールの作成時はウェブ検索・閲覧が使えなかったため、上記の情報源について把握している
-2025〜2026年前半までの水準からの推定であり、路線の運航状況・料金・入国制度を2026年9月時点で再確認できていない。
+航空運賃・ツアー料金・一部の入場料は相場からの推定で、公式に確認できていない値を含む。
 入場料・宿泊費・入国手続きは変更が多いため、予約前に各公式情報で最新の内容を確認すること。
 """
 
@@ -66,8 +67,8 @@ DESTINATIONS = [
                  "hours": 9.7, "cost": 42500},
             ],
             "naha": [
-                {"mode": "flight", "route": "那覇空港→（チャイナエアライン・エバー航空など、台北乗継）→スワンナプーム空港→バンコク市内",
-                 "hours": 11.5, "cost": 36000},
+                {"mode": "flight", "route": "那覇空港→（タイ・エアアジア直行便、手荷物なし運賃）→ドンムアン空港→（SRTレッドライン・MRT）→バンコク市内",
+                 "hours": 7.0, "cost": 22000},
             ],
         },
         "local_transport": {"note": "BTS・MRT とチャオプラヤー川の船が中心。タクシー・トゥクトゥクは配車アプリ（Grab・Bolt）が便利",
@@ -88,8 +89,8 @@ DESTINATIONS = [
         ],
         "spots": [
             {"name": "王宮とワット・プラケオ", "area": "王宮周辺", "kind": "temple", "genres": ["history", "art"], "niche": 1,
-             "hours": 2.0, "cost": 2300, "when": ["morning", "day"], "indoor": False, "fit": ["family_adults", "couple"],
-             "note": "エメラルド仏を祀る王室寺院と旧王宮。外国人入場料500バーツ。肩・膝を隠す服装が必須"},
+             "hours": 2.0, "cost": 2400, "when": ["morning", "day"], "indoor": False, "fit": ["family_adults", "couple"],
+             "note": "エメラルド仏を祀る王室寺院と旧王宮。外国人入場料500バーツ、8:30〜16:30（券売は15:30まで）。肩・膝を隠す服装が必須"},
             {"name": "ワット・ポー", "area": "王宮周辺", "kind": "temple", "genres": ["history"], "niche": 1,
              "hours": 1.0, "cost": 1400, "when": ["morning", "day"], "indoor": False, "fit": ["solo", "family_adults"],
              "note": "全長約46mの寝釈迦仏で知られる寺院。境内にタイ古式マッサージの施術所がある"},
@@ -104,7 +105,7 @@ DESTINATIONS = [
              "avoid": ["family_kids"], "note": "バックパッカーの集まる通り。夜はバーと屋台で深夜まで騒がしい"},
             {"name": "ムエタイ観戦（ラジャダムナン・スタジアム）", "area": "王宮周辺", "kind": "night", "genres": ["activity"],
              "niche": 3, "hours": 2.5, "cost": 8000, "when": ["night"], "indoor": True, "fit": ["friends", "solo"],
-             "note": "ムエタイの老舗スタジアム。席種によって料金差が大きい"},
+             "note": "ムエタイの老舗スタジアム。席種によって料金差が大きい（休館日は要確認）"},
             {"name": "ヤワラート（中華街）の屋台街", "area": "中華街・川沿い", "kind": "market", "genres": ["gourmet", "town"],
              "niche": 2, "hours": 2.0, "cost": 0, "when": ["evening", "night"], "indoor": False, "fit": ["friends", "couple"],
              "note": "夜になると通り沿いに海鮮や麺の屋台が並ぶ。月曜は休む屋台が多い"},
@@ -128,8 +129,8 @@ DESTINATIONS = [
              "hours": 1.5, "cost": 3500, "when": ["evening", "night"], "indoor": False, "fit": ["couple", "friends"],
              "avoid": ["family_kids"], "note": "高層ホテル屋上のバーで夜景を。短パン・サンダル不可のドレスコードがある店が多い"},
             {"name": "アユタヤ遺跡群", "area": "郊外（アユタヤ）", "kind": "temple", "genres": ["history"], "niche": 2,
-             "hours": 6.0, "cost": 900, "when": ["morning", "day"], "indoor": False, "fit": ["family_adults", "solo", "couple"],
-             "note": "14〜18世紀の王朝の都跡（世界遺産）。バンコクから列車・ロットゥー（乗合バン）で約1.5〜2時間。遺跡ごとに入場料が必要"},
+             "hours": 6.0, "cost": 1400, "when": ["morning", "day"], "indoor": False, "fit": ["family_adults", "solo", "couple"],
+             "note": "14〜18世紀の王朝の都跡（世界遺産）。バンコクから列車で約1〜2時間。外国人は1寺80バーツ、7か所共通券300バーツ。遺跡公園は18時まで"},
         ],
         "tips": [
             "王宮・寺院は肩と膝が隠れる服装で。王宮は特に厳しく、短パンやタンクトップでは入れない",
@@ -140,7 +141,7 @@ DESTINATIONS = [
             {"id": "chiangmai", "hours": 3.5, "cost": 8000, "route": "バンコク→（国内線 約1時間15分）→チェンマイ"},
             {"id": "singapore", "hours": 6.0, "cost": 15000, "route": "バンコク→（飛行機 約2時間20分）→シンガポール"},
         ],
-        "notes_overseas": "パスポート（残存6か月以上推奨）。観光目的の短期滞在はビザ不要（最長60日。日数の短縮が議論されているため渡航前に確認）。入国前3日以内にオンラインのタイ・デジタル到着カード（TDAC、無料）の登録が必要。通貨はタイ・バーツ。時差は日本より2時間遅い。電圧220V、プラグはA・C型などでA型がそのまま使える所が多い",
+        "notes_overseas": "パスポート（残存6か月以上推奨）。観光目的の短期滞在はビザ不要で最長30日（2026年9月15日入国分から60日→30日に短縮）。入国前3日以内に公式サイトでタイ・デジタル到着カード（TDAC、無料）の登録が必要。電子たばこは持ち込み・使用とも禁止。通貨はタイ・バーツ。時差は日本より2時間遅い。電圧220V、プラグはA・C型などでA型がそのまま使える所が多い",
     },
     # ───────────────────────────────────────────── チェンマイ
     {
@@ -181,8 +182,8 @@ DESTINATIONS = [
             "osaka": [
                 {"mode": "flight", "route": "関西空港→（タイ国際航空、バンコク乗継）→チェンマイ",
                  "hours": 13.0, "cost": 51500},
-                {"mode": "flight", "route": "関西空港→（タイ・エアアジアX）→ドンムアン→（タイ・エアアジア、別切り）→チェンマイ",
-                 "hours": 13.0, "cost": 31500},
+                {"mode": "flight", "route": "大阪→関西空港→（タイ・ベトジェットエア直行便、手荷物なし運賃）→チェンマイ空港→（車約15分）→旧市街",
+                 "hours": 8.7, "cost": 30000},
             ],
             "hiroshima": [
                 {"mode": "flight", "route": "広島→（新幹線）→博多→福岡空港→（タイ国際航空、バンコク乗継）→チェンマイ",
@@ -193,8 +194,8 @@ DESTINATIONS = [
                  "hours": 11.9, "cost": 50500},
             ],
             "naha": [
-                {"mode": "flight", "route": "那覇空港→（台北乗継）→バンコク→（国内線）→チェンマイ",
-                 "hours": 13.8, "cost": 43000},
+                {"mode": "flight", "route": "那覇空港→（チャイナエアライン・エバー航空など）→台北（桃園）→（同社便）→チェンマイ",
+                 "hours": 10.0, "cost": 42000},
             ],
         },
         "local_transport": {"note": "旧市街は徒歩・レンタサイクル。市内はソンテオ（乗合トラック）と配車アプリ、郊外は車のチャーターかツアー",
@@ -215,11 +216,11 @@ DESTINATIONS = [
         ],
         "spots": [
             {"name": "ワット・プラシン", "area": "旧市街・ピン川", "kind": "temple", "genres": ["history", "art"], "niche": 2,
-             "hours": 1.0, "cost": 200, "when": ["morning", "day"], "indoor": False, "fit": ["solo", "family_adults"],
-             "note": "旧市街で格式の高い寺院。ランナー様式の礼拝堂に壁画が残る（外国人は礼拝堂の拝観が有料）"},
+             "hours": 1.0, "cost": 250, "when": ["morning", "day"], "indoor": False, "fit": ["solo", "family_adults"],
+             "note": "1345年建立の旧市街で格式の高い寺院。ランナー様式の礼拝堂に壁画が残る。外国人入場料50バーツ"},
             {"name": "ワット・チェディ・ルアン", "area": "旧市街・ピン川", "kind": "temple", "genres": ["history"], "niche": 2,
              "hours": 1.0, "cost": 250, "when": ["morning", "day", "evening"], "indoor": False, "fit": ["couple", "solo"],
-             "note": "上部が崩れたままの巨大な仏塔が残る寺院"},
+             "note": "上部が崩れたままの巨大な仏塔が残る寺院。外国人入場料50バーツ、8:00〜22:00"},
             {"name": "サンデー・ウォーキング・ストリート", "area": "旧市街・ピン川", "kind": "market", "genres": ["town", "gourmet"],
              "niche": 2, "hours": 2.0, "cost": 0, "when": ["evening", "night"], "indoor": False, "fit": ["friends", "couple"],
              "closed": [0, 1, 2, 3, 4, 5], "note": "日曜の夕方から旧市街のラチャダムヌン通りが歩行者天国の露店街になる"},
@@ -233,8 +234,8 @@ DESTINATIONS = [
              "hours": 4.0, "cost": 5000, "when": ["morning", "day"], "indoor": True, "fit": ["couple", "friends", "family_kids"],
              "booking": True, "note": "市場での買い出しから始まる半日のクラスが多い。送迎付きが一般的"},
             {"name": "ワット・プラタート・ドイ・ステープ", "area": "ドイ・ステープ・ニマン", "kind": "temple", "genres": ["history", "nature"],
-             "niche": 1, "hours": 2.0, "cost": 300, "when": ["morning", "day"], "indoor": False, "fit": ["couple", "family_adults"],
-             "note": "標高約1,000mの山上寺院。黄金の仏塔と市街の眺め。市内からソンテオで約30〜40分、参道は階段かケーブルカー"},
+             "niche": 1, "hours": 2.0, "cost": 150, "when": ["morning", "day"], "indoor": False, "fit": ["couple", "family_adults"],
+             "note": "標高約1,000mの山上寺院。黄金の仏塔と市街の眺め。市内から車で約40分。入場料30バーツ、参道は306段の階段かケーブルカー（50バーツ）"},
             {"name": "ワット・パーラート", "area": "ドイ・ステープ・ニマン", "kind": "temple", "genres": ["nature", "history"], "niche": 4,
              "hours": 2.0, "cost": 0, "when": ["morning"], "indoor": False, "fit": ["solo", "friends"],
              "note": "ドイ・ステープ山腹の森の中の寺。チェンマイ大学裏から僧侶の道（トレイル）を歩いて約1時間"},
@@ -245,11 +246,11 @@ DESTINATIONS = [
              "hours": 2.0, "cost": 0, "when": ["day", "evening"], "indoor": False, "fit": ["couple", "friends"],
              "note": "カフェ・雑貨店・ギャラリーが集まる大学近くの通り"},
             {"name": "エレファント・ネイチャー・パーク", "area": "郊外", "kind": "activity", "genres": ["nature", "activity"], "niche": 3,
-             "hours": 8.0, "cost": 11500, "when": ["morning", "day"], "indoor": False, "fit": ["family_kids", "couple", "friends"],
-             "booking": True, "note": "ゾウに乗らず観察と餌やりをする保護施設。市内送迎・昼食付きの日帰りプログラム"},
+             "hours": 8.0, "cost": 16500, "when": ["morning", "day"], "indoor": False, "fit": ["family_kids", "couple", "friends"],
+             "booking": True, "note": "ゾウに乗らず観察と餌やりをする保護施設。市内送迎・昼食付きの1日プログラム3,500バーツから（半日は2,500バーツ）"},
             {"name": "ドイ・インタノン国立公園", "area": "郊外", "kind": "nature", "genres": ["nature"], "niche": 3,
              "hours": 8.0, "cost": 8000, "when": ["morning", "day"], "indoor": False, "fit": ["family_adults", "friends"],
-             "note": "タイ最高峰（2,565m）の国立公園。滝と山頂付近の2つの仏塔を回る日帰りツアーが一般的"},
+             "note": "タイ最高峰（2,565m）の国立公園。市内から車で約2時間。滝と山頂付近の2つの仏塔を回る日帰りツアーの料金目安（外国人入園料は300バーツ）"},
             {"name": "ボーサーン傘村", "area": "郊外", "kind": "experience", "genres": ["art", "town"], "niche": 4,
              "hours": 2.0, "cost": 0, "when": ["day"], "indoor": False, "fit": ["family_kids", "family_adults"],
              "note": "紙や布の手描き傘を作る工房が集まる村。市内から車で約30分"},
@@ -265,7 +266,7 @@ DESTINATIONS = [
         "nearby": [
             {"id": "bangkok", "hours": 3.5, "cost": 8000, "route": "チェンマイ→（国内線 約1時間15分）→バンコク"},
         ],
-        "notes_overseas": "パスポート（残存6か月以上推奨）。観光目的の短期滞在はビザ不要（最長60日。日数の短縮が議論されているため渡航前に確認）。入国前3日以内にオンラインのタイ・デジタル到着カード（TDAC、無料）の登録が必要（バンコクで入国する場合もバンコクで手続き）。通貨はタイ・バーツ。時差は日本より2時間遅い。電圧220V、プラグはA・C型など",
+        "notes_overseas": "パスポート（残存6か月以上推奨）。観光目的の短期滞在はビザ不要で最長30日（2026年9月15日入国分から60日→30日に短縮）。入国前3日以内に公式サイトでタイ・デジタル到着カード（TDAC、無料）の登録が必要（バンコク乗継の場合は最初に降りたバンコクの空港で入国審査）。電子たばこは持ち込み・使用とも禁止。通貨はタイ・バーツ。時差は日本より2時間遅い。電圧220V、プラグはA・C型など",
     },
     # ───────────────────────────────────────────── ダナン・ホイアン
     {
@@ -302,12 +303,12 @@ DESTINATIONS = [
                  "hours": 11.3, "cost": 41500},
             ],
             "osaka": [
-                {"mode": "flight", "route": "関西空港→（ベトナム航空・ベトジェットエア。直行便または国内乗継）→ダナン",
-                 "hours": 9.5, "cost": 37000},
+                {"mode": "flight", "route": "大阪→関西空港→（ベトナム航空・ベトジェットエアの直行便）→ダナン国際空港→（車10分）→ダナン市内",
+                 "hours": 8.2, "cost": 37000},
             ],
             "hiroshima": [
-                {"mode": "flight", "route": "広島→（新幹線）→博多→福岡空港→（ベトナム航空など、ハノイ乗継）→ダナン",
-                 "hours": 11.8, "cost": 48000},
+                {"mode": "flight", "route": "広島→（リムジンバス）→広島空港→（ベトジェットエア直行便）→ハノイ→（ベトジェットエア国内線）→ダナン",
+                 "hours": 11.0, "cost": 36000},
             ],
             "fukuoka": [
                 {"mode": "flight", "route": "博多→福岡空港→（ベトナム航空など、ハノイ乗継）→ダナン",
@@ -340,7 +341,7 @@ DESTINATIONS = [
              "months": [3, 4, 5, 6, 7, 8, 9], "note": "市街から近い広い砂浜。波が穏やかな4〜8月が泳ぎやすい"},
             {"name": "ドラゴン橋", "area": "ダナン市内・ビーチ", "kind": "night", "genres": ["town"], "niche": 2,
              "hours": 1.0, "cost": 0, "when": ["night"], "indoor": False, "fit": ["family_kids", "friends"],
-             "closed": [0, 1, 2, 3, 4], "note": "ハン川に架かる龍の形の橋。土日の21時ごろ、龍の口から火と水を噴く"},
+             "closed": [0, 1, 2, 3], "note": "ハン川に架かる龍の形の橋。金・土・日曜と祝日の21時、龍の口から火（約2分）と水（約3分）を噴く"},
             {"name": "ハン市場", "area": "ダナン市内・ビーチ", "kind": "market", "genres": ["town", "gourmet"], "niche": 2,
              "hours": 1.0, "cost": 0, "when": ["morning", "day"], "indoor": True, "fit": ["friends", "family_adults"],
              "note": "市中心部の屋内市場。乾物・コーヒー・布地のオーダーメイドなど"},
@@ -352,10 +353,10 @@ DESTINATIONS = [
              "note": "市街の北東の半島。海を見下ろす白い観音像の寺からダナンの海岸線を一望"},
             {"name": "五行山（マーブルマウンテン）", "area": "ホイアン方面", "kind": "nature", "genres": ["nature", "history"], "niche": 2,
              "hours": 2.0, "cost": 300, "when": ["morning", "day"], "indoor": False, "fit": ["friends", "family_kids"],
-             "note": "ダナンとホイアンの間にある大理石の岩山。洞窟の中に寺院がある。エレベーターは別料金"},
+             "note": "ダナン中心から約8km、ホイアンへの途中にある大理石の岩山。洞窟の中に寺院がある。入場料4万ドン、エレベーター片道1.5万ドン"},
             {"name": "ホイアン旧市街", "area": "ホイアン方面", "kind": "sight", "genres": ["history", "town"], "niche": 1,
              "hours": 3.0, "cost": 700, "when": ["day", "evening"], "indoor": False, "fit": ["couple", "family_adults", "solo"],
-             "note": "15〜19世紀の交易港の町並み（世界遺産）。入場券（外国人12万ドン）で古家や会館、修復を終えた来遠橋（日本橋）などに入れる"},
+             "note": "15〜19世紀の交易港の町並み（世界遺産）。街歩きは無料。外国人用の入場券（12万ドン、当日有効）で来遠橋（日本橋）か関公廟のどちらか1つ、博物館、古家・会館など3か所に入れる"},
             {"name": "トゥボン川の灯籠流しとナイトマーケット", "area": "ホイアン方面", "kind": "night", "genres": ["town"], "niche": 2,
              "hours": 1.5, "cost": 400, "when": ["evening", "night"], "indoor": False, "fit": ["couple", "family_kids", "friends"],
              "note": "ランタンの灯る夜の旧市街。小舟から灯籠を流せる（舟代は交渉制）"},
@@ -369,11 +370,11 @@ DESTINATIONS = [
              "hours": 2.5, "cost": 0, "when": ["day", "evening"], "indoor": False, "fit": ["couple", "friends"],
              "note": "ホイアン郊外の海辺。ビーチ沿いにカフェやシーフードの店が並ぶ"},
             {"name": "バナヒルズ", "area": "郊外", "kind": "activity", "genres": ["activity", "nature"], "niche": 1,
-             "hours": 6.0, "cost": 5300, "when": ["morning", "day"], "indoor": False, "fit": ["family_kids", "friends", "group"],
-             "note": "ロープウェイで上る山上のテーマパーク。巨大な手が支えるゴールデンブリッジがある。ダナン市内から車で約45分"},
+             "hours": 6.0, "cost": 6100, "when": ["morning", "day"], "indoor": False, "fit": ["family_kids", "friends", "group"],
+             "note": "ロープウェイで上る山上のテーマパーク。巨大な手が支えるゴールデンブリッジがある。ダナン市内から車で約45分。入園・ロープウェイ込みの券が100万ドン。午後は霧が出やすい"},
             {"name": "ミーソン遺跡", "area": "郊外", "kind": "temple", "genres": ["history"], "niche": 3,
-             "hours": 3.0, "cost": 850, "when": ["morning"], "indoor": False, "fit": ["solo", "family_adults"],
-             "note": "チャンパ王国のレンガ造りの聖域跡（世界遺産）。ホイアンから車で約1時間。暑くなる前の早朝がよい"},
+             "hours": 3.0, "cost": 900, "when": ["morning"], "indoor": False, "fit": ["solo", "family_adults"],
+             "note": "チャンパ王国のレンガ造りの聖域跡（世界遺産）。ホイアンから約45km、車で約1時間。外国人入場料15万ドン、6:00〜17:00。暑くなる前の早朝がよい"},
             {"name": "ハイヴァン峠", "area": "郊外", "kind": "nature", "genres": ["nature"], "niche": 4,
              "hours": 3.0, "cost": 0, "when": ["morning", "day"], "indoor": False, "fit": ["friends", "solo"],
              "note": "ダナンの北、海沿いの山を越える峠道。頂上に古い砦跡が残る。車やバイクのツアーで"},
@@ -386,7 +387,7 @@ DESTINATIONS = [
         "nearby": [
             {"id": "hanoi_halong", "hours": 4.0, "cost": 7000, "route": "ダナン→（国内線 約1時間20分）→ハノイ"},
         ],
-        "notes_overseas": "パスポート（残存6か月以上）。45日以内の観光はビザ不要（超える場合は電子ビザを事前取得）。通貨はベトナム・ドン。時差は日本より2時間遅い。電圧220V、プラグはA・C型など",
+        "notes_overseas": "パスポート（残存6か月以上）。45日以内の観光はビザ不要（超える場合は電子ビザを事前取得）。電子たばこ・加熱式たばこは2025年から禁止されており持ち込まない。通貨はベトナム・ドン。時差は日本より2時間遅い。電圧220V、プラグはA・C型など",
     },
     # ───────────────────────────────────────────── ハノイ・ハロン湾
     {
@@ -407,11 +408,11 @@ DESTINATIONS = [
         "tz_offset": -2,
         "access": {
             "sapporo": [
-                {"mode": "flight", "route": "札幌→新千歳空港→（国内線）→羽田→（ANA・ベトナム航空など）→ハノイ（ノイバイ空港）→ハノイ市内",
+                {"mode": "flight", "route": "札幌→新千歳空港→（国内線）→羽田・成田→（ベトナム航空・JAL・ANAなど）→ハノイ（ノイバイ空港）→ハノイ市内",
                  "hours": 13.6, "cost": 48000},
             ],
             "sendai": [
-                {"mode": "flight", "route": "仙台→（はやぶさ）→東京→羽田→（ANA・ベトナム航空など）→ハノイ",
+                {"mode": "flight", "route": "仙台→（はやぶさ）→東京→羽田・成田→（ベトナム航空・JAL・ANAなど）→ハノイ",
                  "hours": 11.4, "cost": 52500},
             ],
             "tokyo": [
@@ -429,8 +430,8 @@ DESTINATIONS = [
                  "hours": 9.5, "cost": 36500},
             ],
             "hiroshima": [
-                {"mode": "flight", "route": "広島→（新幹線）→博多→福岡空港→（ベトナム航空など直行便）→ハノイ",
-                 "hours": 9.6, "cost": 45000},
+                {"mode": "flight", "route": "広島→（リムジンバス）→広島空港→（ベトジェットエア直行便、手荷物なし運賃）→ノイバイ空港→ハノイ旧市街",
+                 "hours": 7.8, "cost": 28000},
             ],
             "fukuoka": [
                 {"mode": "flight", "route": "博多→福岡空港→（ベトナム航空など直行便）→ノイバイ空港→ハノイ旧市街",
@@ -474,13 +475,13 @@ DESTINATIONS = [
              "note": "フランス統治時代に建てられた監獄の跡。独立運動とベトナム戦争期の展示"},
             {"name": "ベトナム女性博物館", "area": "旧市街・ホアンキエム湖", "kind": "museum", "genres": ["history", "art"], "niche": 4,
              "hours": 1.0, "cost": 250, "when": ["day"], "indoor": True, "fit": ["solo", "couple"],
-             "note": "民族衣装や暮らしの道具、戦時の女性たちの記録を展示"},
+             "note": "民族衣装や暮らしの道具、戦時の女性たちの記録を展示（休館日は要確認）"},
             {"name": "ホーチミン廟とバーディン広場", "area": "バーディン・西湖", "kind": "sight", "genres": ["history"], "niche": 2,
              "hours": 1.5, "cost": 0, "when": ["morning"], "indoor": False, "fit": ["family_adults", "solo"],
-             "closed": [0, 4], "note": "建国の父の遺体を安置する廟。公開は午前中のみで月・金曜休み、年に一度長期の保守期間がある。隣に一柱寺"},
+             "closed": [0, 4], "note": "建国の父の遺体を安置する廟。公開は午前中のみで月・金曜休み。毎年秋に長期の保守期間があり、2026年は9月4日〜11月2日が拝観休止。隣に一柱寺"},
             {"name": "文廟", "area": "バーディン・西湖", "kind": "temple", "genres": ["history"], "niche": 2,
              "hours": 1.0, "cost": 400, "when": ["morning", "day"], "indoor": False, "fit": ["family_adults", "couple"],
-             "note": "孔子を祀る廟で、ベトナム最古の大学とされる国子監が置かれた。科挙合格者の石碑が並ぶ"},
+             "note": "孔子を祀る廟で、ベトナム最古の大学とされる国子監が置かれた。科挙合格者の石碑が並ぶ。入場料7万ドン、8:00〜17:00"},
             {"name": "西湖と鎮国寺", "area": "バーディン・西湖", "kind": "temple", "genres": ["history", "nature"], "niche": 2,
              "hours": 1.0, "cost": 0, "when": ["day", "evening"], "indoor": False, "fit": ["couple", "solo"],
              "note": "市内最大の湖に突き出た古刹。夕暮れの湖畔の散歩に"},
@@ -492,7 +493,7 @@ DESTINATIONS = [
              "booking": True, "note": "大小約1,600の島々が浮かぶ湾（世界遺産）。ハノイ発着の送迎・昼食付きツアーで約12時間。荒天時は欠航"},
             {"name": "ニンビン（チャンアン）の手漕ぎボート", "area": "郊外", "kind": "nature", "genres": ["nature", "history"], "niche": 2,
              "hours": 8.0, "cost": 7000, "when": ["morning", "day"], "indoor": False, "fit": ["couple", "family_adults", "friends"],
-             "note": "奇岩の間の川と洞窟を小舟で巡る（世界遺産）。ハノイから車で約2時間。日帰りツアーの料金目安"},
+             "note": "奇岩の間の川と洞窟を小舟で巡る（世界遺産）。ハノイから約115km、車や列車で約2時間。日帰りツアーの料金目安（船代は30万ドン）。雨季は増水で遊船が一時停止することがある"},
             {"name": "バッチャン陶器村", "area": "郊外", "kind": "experience", "genres": ["art", "town"], "niche": 4,
              "hours": 3.0, "cost": 0, "when": ["day"], "indoor": False, "fit": ["family_kids", "couple"],
              "note": "バッチャン焼きの窯元と店が並ぶ村。市内から車で約40分。絵付け体験ができる工房もある"},
@@ -508,7 +509,7 @@ DESTINATIONS = [
         "nearby": [
             {"id": "danang_hoian", "hours": 4.0, "cost": 7000, "route": "ハノイ→（国内線 約1時間20分）→ダナン"},
         ],
-        "notes_overseas": "パスポート（残存6か月以上）。45日以内の観光はビザ不要（超える場合は電子ビザを事前取得）。通貨はベトナム・ドン。時差は日本より2時間遅い。電圧220V、プラグはA・C型など",
+        "notes_overseas": "パスポート（残存6か月以上）。45日以内の観光はビザ不要（超える場合は電子ビザを事前取得）。電子たばこ・加熱式たばこは2025年から禁止されており持ち込まない。通貨はベトナム・ドン。時差は日本より2時間遅い。電圧220V、プラグはA・C型など",
     },
     # ───────────────────────────────────────────── シンガポール
     {
@@ -529,8 +530,8 @@ DESTINATIONS = [
         "tz_offset": -1,
         "access": {
             "sapporo": [
-                {"mode": "flight", "route": "札幌→新千歳空港→（国内線）→羽田→（シンガポール航空・JAL・ANA）→チャンギ空港→（MRT・タクシー）→市内",
-                 "hours": 14.3, "cost": 56000},
+                {"mode": "flight", "route": "札幌→（JR快速エアポート）→新千歳空港→（シンガポール航空直行便）→チャンギ空港→（MRT・タクシー）→市内",
+                 "hours": 11.3, "cost": 53000},
             ],
             "sendai": [
                 {"mode": "flight", "route": "仙台→（はやぶさ）→東京→羽田→（シンガポール航空・JAL・ANA）→チャンギ空港→市内",
@@ -561,8 +562,8 @@ DESTINATIONS = [
                  "hours": 9.4, "cost": 48500},
             ],
             "naha": [
-                {"mode": "flight", "route": "那覇空港→（チャイナエアライン・エバー航空など、台北乗継）→チャンギ空港→市内",
-                 "hours": 11.5, "cost": 38000},
+                {"mode": "flight", "route": "那覇空港→（スクート直行便、手荷物なし運賃）→チャンギ空港→市内",
+                 "hours": 7.5, "cost": 26000},
             ],
         },
         "local_transport": {"note": "MRT・バスはタッチ決済のクレジットカードで乗れる。深夜や荷物が多いときは配車アプリ（Grab）",
@@ -585,12 +586,12 @@ DESTINATIONS = [
             {"name": "ガーデンズ・バイ・ザ・ベイ（スーパーツリー・グローブ）", "area": "マリーナベイ", "kind": "sight",
              "genres": ["nature", "art"], "niche": 1, "hours": 1.5, "cost": 0, "when": ["day", "evening", "night"], "indoor": False,
              "fit": ["couple", "family_kids", "friends"],
-             "note": "巨大な人工樹が並ぶ庭園。屋外エリアは無料で、毎晩光と音楽のショー（ガーデン・ラプソディ）がある"},
+             "note": "巨大な人工樹が並ぶ庭園。屋外エリアは無料（有料イベント期間を除く）で、毎晩19:45と20:45に光と音楽のショー（ガーデン・ラプソディ）がある"},
             {"name": "フラワードームとクラウド・フォレスト", "area": "マリーナベイ", "kind": "nature", "genres": ["nature"],
-             "niche": 1, "hours": 2.0, "cost": 6100, "when": ["day"], "indoor": True, "fit": ["family_adults", "family_kids", "couple"],
-             "note": "ガーデンズ・バイ・ザ・ベイ内の2つの巨大温室。屋内の滝と高山植物の展示がある"},
+             "niche": 1, "hours": 2.0, "cost": 5700, "when": ["day", "evening"], "indoor": True, "fit": ["family_adults", "family_kids", "couple"],
+             "note": "ガーデンズ・バイ・ザ・ベイ内の2つの巨大温室。屋内の滝と高山植物の展示がある。非居住者の2館券46シンガポール・ドル、9:00〜21:00（最終入場はクラウド・フォレスト20:00）"},
             {"name": "マリーナベイ・サンズ展望デッキ", "area": "マリーナベイ", "kind": "sight", "genres": ["art"], "niche": 1,
-             "hours": 1.0, "cost": 3700, "when": ["evening", "night"], "indoor": False, "fit": ["couple", "family_adults"],
+             "hours": 1.0, "cost": 3900, "when": ["evening", "night"], "indoor": False, "fit": ["couple", "family_adults"],
              "note": "57階の展望デッキから湾岸を一望。夜は湾沿いで無料の光と水のショー（スペクトラ）もある"},
             {"name": "マーライオン公園", "area": "マリーナベイ", "kind": "sight", "genres": ["town"], "niche": 1,
              "hours": 0.5, "cost": 0, "when": ["morning", "day", "night"], "indoor": False, "fit": ["family_kids", "group"],
@@ -617,11 +618,11 @@ DESTINATIONS = [
              "hours": 2.0, "cost": 0, "when": ["morning"], "indoor": False, "fit": ["family_adults", "solo", "couple"],
              "note": "世界遺産の植物園。入園無料（国立洋ラン園は有料）。暑くなる前の朝がよい"},
             {"name": "ユニバーサル・スタジオ・シンガポール", "area": "郊外・セントーサ", "kind": "activity", "genres": ["activity"],
-             "niche": 1, "hours": 8.0, "cost": 9500, "when": ["morning", "day"], "indoor": False, "fit": ["family_kids", "friends"],
-             "note": "セントーサ島のテーマパーク。1日券の料金目安"},
+             "niche": 1, "hours": 8.0, "cost": 10200, "when": ["morning", "day"], "indoor": False, "fit": ["family_kids", "friends"],
+             "note": "セントーサ島のテーマパーク。1日券の料金目安（日によって変動）。島へはVivoCityからセントーサ・エクスプレス（4シンガポール・ドル）か遊歩道"},
             {"name": "ナイトサファリ", "area": "郊外・セントーサ", "kind": "night", "genres": ["nature", "activity"], "niche": 2,
-             "hours": 3.0, "cost": 6400, "when": ["night"], "indoor": False, "fit": ["family_kids", "couple"],
-             "note": "夜行性動物をトラムと徒歩で観察する夜の動物園。市街の北、車で約30分"},
+             "hours": 3.0, "cost": 7100, "when": ["night"], "indoor": False, "fit": ["family_kids", "couple"], "booking": True,
+             "note": "夜行性動物をトラムと徒歩で観察する夜の動物園。市街の北、車で約30分。18:00〜24:00（トラムと遊歩道は19:00から）。非居住者の大人58シンガポール・ドル（通常日）、単園券は入園時間帯の予約が必要"},
             {"name": "プラウ・ウビン島", "area": "郊外・セントーサ", "kind": "nature", "genres": ["nature", "remote", "activity"],
              "niche": 4, "hours": 4.0, "cost": 1500, "when": ["morning", "day"], "indoor": False, "fit": ["friends", "solo"],
              "note": "チャンギ・ポイントから小型船で約10分。昔ながらの村とマングローブを自転車で巡る（船代・自転車代の目安）"},
@@ -635,7 +636,7 @@ DESTINATIONS = [
             {"id": "bali", "hours": 6.0, "cost": 15000, "route": "シンガポール→（飛行機 約2時間40分）→デンパサール（バリ島）"},
             {"id": "bangkok", "hours": 6.0, "cost": 15000, "route": "シンガポール→（飛行機 約2時間20分）→バンコク"},
         ],
-        "notes_overseas": "パスポート（残存6か月以上）。30日以内の観光はビザ不要。入国前3日以内にオンラインのSGアライバルカード（SGAC、無料）の提出が必要。電子たばこは持ち込み禁止。通貨はシンガポール・ドル。時差は日本より1時間遅い。電圧230V、プラグはBF型で変換プラグが必要",
+        "notes_overseas": "パスポート（残存6か月以上。不足していると搭乗を断られることがある）。30日以内の観光はビザ不要。到着日を含む3日以内にICA公式サイトかMyICAアプリでSGアライバルカード（SGAC、無料）の提出が必要。電子たばこは持ち込み禁止で、所持・使用も罰金の対象。通貨はシンガポール・ドル。時差は日本より1時間遅い。電圧230V、プラグはBF型で変換プラグが必要",
     },
     # ───────────────────────────────────────────── バリ島
     {
@@ -666,7 +667,7 @@ DESTINATIONS = [
             "tokyo": [
                 {"mode": "flight", "route": "東京→（京成・バス）→成田→（ガルーダ・インドネシア航空直行便・早割）→デンパサール空港→（車約40分）→クタ・スミニャック",
                  "hours": 12.0, "cost": 58500},
-                {"mode": "flight", "route": "成田→（LCC、クアラルンプールなどで乗継）→デンパサール",
+                {"mode": "flight", "route": "羽田・成田→（エアアジアX・ZIPAIRなどLCC）→クアラルンプール→（エアアジア、別切り）→デンパサール",
                  "hours": 17.5, "cost": 37000},
             ],
             "nagoya": [
@@ -757,7 +758,7 @@ DESTINATIONS = [
         "nearby": [
             {"id": "singapore", "hours": 6.0, "cost": 15000, "route": "デンパサール→（飛行機 約2時間40分）→シンガポール"},
         ],
-        "notes_overseas": "パスポート（残存6か月以上、未使用の査証欄が必要）。観光は到着ビザ（VOA、50万ルピア、30日。オンラインで事前にe-VOAも取得可）が必要。バリ州の観光税（15万ルピア）の支払いが別途必要で、オンラインで事前払いできる。入国前にオンラインの入国・税関申告の登録が必要。通貨はインドネシア・ルピア。時差は日本より1時間遅い。電圧230V、プラグはC・SE型で変換プラグが必要",
+        "notes_overseas": "パスポート（残存6か月以上、未使用の査証欄が必要）。観光は到着ビザ（VOA、50万ルピア、30日。オンラインで事前にe-VOAも取得可）が必要。バリ州の観光税（15万ルピア）の支払いが別途必要で、公式サイト（Love Bali）で事前払いできる。到着前3日以内にオンラインの到着カード「All Indonesia」（入国・税関・健康申告を統合、無料）の登録が必要。通貨はインドネシア・ルピア。時差は日本より1時間遅い。電圧230V、プラグはC・SE型で変換プラグが必要",
     },
     # ───────────────────────────────────────────── グアム
     {
@@ -767,7 +768,7 @@ DESTINATIONS = [
         "region": "overseas",
         "niche": 1,
         "genres": {"beach": 3, "activity": 3, "town": 2, "history": 2, "nature": 2, "gourmet": 1},
-        "tagline": "成田から約3時間半。遠浅のタモン湾で泳いで買い物もできる近場の南国",
+        "tagline": "成田から約4時間弱。遠浅のタモン湾で泳いで買い物もできる近場の南国",
         "description": "日本から飛行機で3〜4時間のアメリカ領の島。ホテルが並ぶタモン湾は遠浅で波が穏やかで、シュノーケリングやマリンスポーツ、免税店での買い物を短い日程で楽しめる。南部にはスペイン統治時代の史跡やチャモロの村、太平洋戦争の戦跡が残る。",
         "best_months": [1, 2, 3, 4, 5, 12],
         "avoid_months": [],
@@ -786,7 +787,7 @@ DESTINATIONS = [
                  "hours": 9.4, "cost": 51000},
             ],
             "tokyo": [
-                {"mode": "flight", "route": "東京→（京成・バス）→成田→（ユナイテッド航空直行便・早割）→グアム空港→（車約15分）→タモン",
+                {"mode": "flight", "route": "東京→（京成・バス）→成田→（ユナイテッド航空・JAL直行便・早割、羽田発のユナイテッド便もある）→グアム空港→（車約15分）→タモン",
                  "hours": 7.5, "cost": 37500},
             ],
             "nagoya": [
@@ -802,8 +803,8 @@ DESTINATIONS = [
                  "hours": 9.0, "cost": 50500},
             ],
             "fukuoka": [
-                {"mode": "flight", "route": "博多→福岡空港→（ユナイテッド航空直行便）→グアム空港→タモン",
-                 "hours": 6.7, "cost": 37500},
+                {"mode": "flight", "route": "博多→福岡空港→（JAL・ANA国内線）→羽田→（ユナイテッド航空直行便）→グアム空港→タモン",
+                 "hours": 9.5, "cost": 53000},
             ],
             "naha": [
                 {"mode": "flight", "route": "那覇空港→（LCC）→関西空港→（ユナイテッド航空）→グアム",
@@ -848,7 +849,7 @@ DESTINATIONS = [
              "note": "スペイン統治時代の総督邸跡の広場と、隣接する大聖堂。近くにラッテストーン公園"},
             {"name": "グアム博物館", "area": "ハガニア・中部", "kind": "museum", "genres": ["history"], "niche": 3,
              "hours": 1.0, "cost": 500, "when": ["day"], "indoor": True, "fit": ["family_kids", "solo"],
-             "note": "チャモロの文化と島の歴史を紹介する博物館。スペイン広場の向かい"},
+             "note": "チャモロの文化と島の歴史を紹介する博物館。スペイン広場の向かい（休館日は要確認）"},
             {"name": "チャモロ・ヴィレッジのナイトマーケット", "area": "ハガニア・中部", "kind": "market", "genres": ["gourmet", "town"],
              "niche": 2, "hours": 2.0, "cost": 0, "when": ["evening", "night"], "indoor": False, "fit": ["friends", "family_kids", "group"],
              "closed": [0, 1, 3, 4, 5, 6], "note": "毎週水曜の夜に開かれる市。BBQの屋台や民芸品、チャモロの踊り"},
@@ -870,7 +871,7 @@ DESTINATIONS = [
             "7〜11月は雨季で、台風が近づくこともある",
             "日本の運転免許で運転でき、南部の海岸線をぐるりと回るドライブが楽しい",
         ],
-        "notes_overseas": "パスポート（滞在日数以上の残存期間）。ESTA（電子渡航認証、有料）を取得するか、45日以内ならグアム・北マリアナ諸島ビザ免除プログラムでも入国できる（事前のオンライン申請の要否は渡航前に確認）。通貨は米ドル、チップの習慣あり。時差は日本より1時間早い。電圧110〜120V、プラグはA型で日本の機器はたいていそのまま使える",
+        "notes_overseas": "パスポート（滞在日数以上の残存期間）。ESTA（電子渡航認証、40ドル）を取得するか、45日以内ならグアム・北マリアナ諸島ビザ免除プログラムでも入国できるが、その場合も出発前にオンラインでG-CNMI ETA（電子渡航認証）の取得が必要。通貨は米ドル、チップの習慣あり。時差は日本より1時間早い。電圧110〜120V、プラグはA型で日本の機器はたいていそのまま使える",
     },
     # ───────────────────────────────────────────── ハワイ・オアフ島
     {
@@ -899,21 +900,21 @@ DESTINATIONS = [
                  "hours": 12.6, "cost": 85000},
             ],
             "tokyo": [
-                {"mode": "flight", "route": "羽田・成田→（JAL・ANA・ハワイアン航空などの直行便・早割）→ホノルル→（車約30分）→ワイキキ",
+                {"mode": "flight", "route": "羽田・成田→（JAL・ANA・デルタ航空・アラスカ航空（旧ハワイアン航空便）などの直行便・早割）→ホノルル→（車約30分）→ワイキキ",
                  "hours": 11.0, "cost": 72500},
                 {"mode": "flight", "route": "成田→（ZIPAIR、手荷物なし運賃）→ホノルル→ワイキキ",
                  "hours": 11.5, "cost": 46500},
             ],
             "nagoya": [
-                {"mode": "flight", "route": "名古屋→（のぞみ）→品川→（京急）→羽田→（JAL・ANAなど）→ホノルル→ワイキキ",
-                 "hours": 12.4, "cost": 84000},
+                {"mode": "flight", "route": "名古屋→（名鉄ミュースカイ）→中部空港→（JAL直行便・早割）→ホノルル→（車約30分）→ワイキキ",
+                 "hours": 10.8, "cost": 75000},
             ],
             "osaka": [
-                {"mode": "flight", "route": "大阪→関西空港→（JAL・ハワイアン航空の直行便・早割）→ホノルル→ワイキキ",
+                {"mode": "flight", "route": "大阪→関西空港→（JAL・アラスカ航空（旧ハワイアン航空便）の直行便・早割）→ホノルル→ワイキキ",
                  "hours": 12.0, "cost": 73500},
             ],
             "hiroshima": [
-                {"mode": "flight", "route": "広島→（のぞみ）→新大阪→（特急はるか）→関西空港→（JAL・ハワイアン航空）→ホノルル→ワイキキ",
+                {"mode": "flight", "route": "広島→（のぞみ）→新大阪→（特急はるか）→関西空港→（JAL・アラスカ航空）→ホノルル→ワイキキ",
                  "hours": 13.6, "cost": 86000},
             ],
             "fukuoka": [
@@ -949,21 +950,21 @@ DESTINATIONS = [
              "niche": 2, "hours": 2.0, "cost": 13000, "when": ["morning", "day"], "indoor": False, "fit": ["friends", "couple", "family_kids"],
              "booking": True, "note": "ゆるやかな長い波が立つワイキキは初心者の練習向き。グループレッスンの目安"},
             {"name": "ダイヤモンドヘッド州立自然記念物", "area": "ワイキキ・ホノルル", "kind": "nature", "genres": ["nature", "activity"],
-             "niche": 1, "hours": 2.0, "cost": 750, "when": ["morning"], "indoor": False, "fit": ["friends", "couple", "family_adults"],
+             "niche": 1, "hours": 2.0, "cost": 800, "when": ["morning"], "indoor": False, "fit": ["friends", "couple", "family_adults"],
              "booking": True, "note": "火口の縁まで片道約30〜40分の登山道。州外からの訪問者は事前予約制（入場料5ドル、駐車は別料金）"},
             {"name": "イオラニ宮殿", "area": "ワイキキ・ホノルル", "kind": "museum", "genres": ["history"], "niche": 3,
              "hours": 1.5, "cost": 4000, "when": ["day"], "indoor": True, "fit": ["family_adults", "solo"],
-             "note": "ハワイ王国の王が暮らした宮殿。ツアー形式で内部を見学"},
+             "closed": [6], "note": "ハワイ王国の王が暮らした宮殿。ツアー形式で内部を見学。日曜休館（ほかの休館日は要確認）"},
             {"name": "ビショップ博物館", "area": "ワイキキ・ホノルル", "kind": "museum", "genres": ["history", "nature"], "niche": 3,
              "hours": 2.5, "cost": 5100, "when": ["day"], "indoor": True, "fit": ["family_kids", "family_adults", "solo"],
-             "note": "ハワイと太平洋の島々の歴史・自然を扱う大規模な博物館"},
+             "note": "ハワイと太平洋の島々の歴史・自然を扱う大規模な博物館（休館日は要確認）"},
             {"name": "ハウス・ウィズアウト・ア・キーのサンセット", "area": "ワイキキ・ホノルル", "kind": "night",
              "genres": ["drink", "art"], "niche": 3, "hours": 1.5, "cost": 3500, "when": ["evening"], "indoor": False,
              "fit": ["couple", "family_adults"], "note": "ホテル「ハレクラニ」の海辺のラウンジ。夕暮れにハワイアン音楽とフラ。飲み物代の目安"},
             {"name": "ハナウマ湾自然保護区", "area": "東海岸", "kind": "nature", "genres": ["beach", "nature", "activity"], "niche": 1,
-             "hours": 3.0, "cost": 3800, "when": ["morning", "day"], "indoor": False, "fit": ["family_kids", "couple", "friends"],
+             "hours": 3.0, "cost": 3900, "when": ["morning", "day"], "indoor": False, "fit": ["family_kids", "couple", "friends"],
              "booking": True, "closed": [0, 1],
-             "note": "サンゴ礁の湾でシュノーケリング。非居住者は入場料25ドルでオンライン予約制。月・火曜休み"},
+             "note": "サンゴ礁の湾でシュノーケリング。非居住者は入場料25ドルでオンライン予約制（2日前の朝7時から受付）。水〜日曜の6:45〜16:00、月・火曜休み。入場前に保護の説明ビデオを視聴する"},
             {"name": "マカプウ岬灯台トレイル", "area": "東海岸", "kind": "nature", "genres": ["nature"], "niche": 3,
              "hours": 1.5, "cost": 0, "when": ["morning"], "indoor": False, "fit": ["friends", "couple", "solo"],
              "note": "舗装された坂道を登って東海岸と灯台を見下ろす。冬はクジラが見えることもある。日陰がない"},
@@ -981,7 +982,7 @@ DESTINATIONS = [
              "note": "古い木造の店が並ぶノースショアのサーフタウン。ワイキキから車で約1時間。冬は近くの海岸で大波のサーフィンが見られる"},
             {"name": "ワイメア渓谷", "area": "真珠湾・ノースショア", "kind": "nature", "genres": ["nature", "history"], "niche": 4,
              "hours": 2.5, "cost": 3900, "when": ["morning", "day"], "indoor": False, "fit": ["family_kids", "family_adults", "couple"],
-             "note": "植物園として整備された渓谷。遊歩道を歩いて奥の滝まで行ける"},
+             "note": "植物園として整備された渓谷。遊歩道を歩いて奥の滝まで行ける（休館日は要確認）"},
         ],
         "tips": [
             "ダイヤモンドヘッドとハナウマ湾は州外からの訪問者は事前予約制",
@@ -989,6 +990,6 @@ DESTINATIONS = [
             "チップは15〜20％が目安",
             "ノースショアへはザ・バスでも行けるが片道2時間前後かかる。レンタカーかツアーが効率的",
         ],
-        "notes_overseas": "パスポート必須。ビザなしで入国するにはESTA（電子渡航認証、有料）の事前取得が必要。通貨は米ドル、チップの習慣あり。時差は日本より19時間遅い（日本の前日）。電圧120V、プラグはA型で日本の機器はたいていそのまま使える",
+        "notes_overseas": "パスポート必須。ビザなしで入国するにはESTA（電子渡航認証、40ドル）の事前取得が必要。通貨は米ドル、チップの習慣あり。時差は日本より19時間遅い（日本の前日）。電圧120V、プラグはA型で日本の機器はたいていそのまま使える",
     },
 ]

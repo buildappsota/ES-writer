@@ -88,10 +88,18 @@ st.markdown("""
 # ════════════════════════════════════════════════════════════════════
 # 生成
 # ════════════════════════════════════════════════════════════════════
-def generate(cond: engine.Conditions, dest_seed: int, plan_seed: int, forced_id: str | None = None) -> None:
+def generate(cond: engine.Conditions, dest_seed: int, plan_seed: int, forced_id: str | None = None,
+             avoid_id: str | None = None) -> None:
+    """旅を作って session_state.plan に入れる。
+
+    forced_id：その行き先で作る（旅コードに行き先 id が残る）。
+    avoid_id：その行き先以外から抽選する（「別の行き先で引き直す」用。結果は行き先指定の旅として扱う）。
+    """
+    st.session_state.error = None
     dests = destinations()
     result = engine.search(dests, cond)
-    st.session_state.search = result
+    info = {"scope_count": result.scope_count, "candidates": len(result.candidates),
+            "genre_relaxed": result.genre_relaxed}
     if forced_id:
         cand = next((c for c in result.candidates if c.dest["id"] == forced_id), None)
         if cand is None:
@@ -99,22 +107,28 @@ def generate(cond: engine.Conditions, dest_seed: int, plan_seed: int, forced_id:
             return
         others = [c for c in result.candidates if c.dest["id"] != forced_id]
         alternatives = engine.pick(others, cond.surprise, random.Random(f"alt-{dest_seed}"), k=3)
+        plan = planner.make_plan(cand, cond, dests, dest_seed, plan_seed, alternatives, forced=True,
+                                 genre_relaxed=result.genre_relaxed)
     else:
-        if not result.candidates:
+        pool = [c for c in result.candidates if c.dest["id"] != avoid_id]
+        if not pool:
             st.session_state.plan = None
-            st.session_state.error = None
+            st.session_state.no_result = result
+            if avoid_id and result.candidates:
+                st.session_state.error = "条件に合う行き先がほかにありません。"
             return
-        picked = engine.pick(result.candidates, cond.surprise, random.Random(f"dest-{dest_seed}"), k=4)
-        cand, alternatives = picked[0], picked[1:]
-    plan = planner.make_plan(cand, cond, dests, dest_seed, plan_seed, alternatives)
+        picked = engine.pick(pool, cond.surprise, random.Random(f"dest-{dest_seed}"), k=4)
+        plan = planner.make_plan_from_candidates(picked, cond, dests, dest_seed, plan_seed,
+                                                 forced=avoid_id is not None, genre_relaxed=result.genre_relaxed)
+    plan.search_info = info
     st.session_state.plan = plan
+    st.session_state.no_result = None
     st.session_state.plan_fp = cond.fingerprint()
-    st.session_state.error = None
-    history = [p for p in st.session_state.history if p.trip_code != plan.trip_code or p.dest["id"] != plan.dest["id"]]
+    history = [p for p in st.session_state.history if p.dest["id"] != plan.dest["id"]]
     st.session_state.history = ([plan] + history)[:HISTORY_MAX]
 
 
-for key, default in {"plan": None, "plan_fp": None, "search": None, "error": None, "history": []}.items():
+for key, default in {"plan": None, "plan_fp": None, "no_result": None, "error": None, "history": []}.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
@@ -143,16 +157,17 @@ with col_in:
     nights = st.select_slider("日数", options=list(range(0, 8)), value=1,
                               format_func=lambda n: "日帰り" if n == 0 else f"{n}泊{n + 1}日")
 
-    relation = st.pills("関係性", list(RELATIONS), format_func=RELATIONS.get, default="friends",
-                        selection_mode="single") or "friends"
-    solo = relation == "solo"
-    c1, c2 = st.columns(2)
-    with c1:
-        adults = st.number_input("大人", min_value=1, max_value=20, value=2, step=1, disabled=solo)
-    with c2:
-        kids = st.number_input("子ども（小学生以下）", min_value=0, max_value=10, value=0, step=1, disabled=solo)
-    if solo:
+    relation = st.radio("関係性", list(RELATIONS), index=list(RELATIONS).index("friends"),
+                        format_func=RELATIONS.get, horizontal=True)
+    if relation == "solo":
         adults, kids = 1, 0
+        st.caption("ひとり旅：大人 1 人で計算します。")
+    else:
+        c1, c2 = st.columns(2)
+        with c1:
+            adults = st.number_input("大人", min_value=1, max_value=20, value=2, step=1)
+        with c2:
+            kids = st.number_input("子ども（小学生以下）", min_value=0, max_value=10, value=0, step=1)
     if relation == "family_kids" and kids == 0:
         st.caption("子どもの人数を入れると、運賃・宿代の子ども料金を反映します。")
 
@@ -198,14 +213,14 @@ with col_in:
     )
 
     if st.button("🎲 旅をつくる", type="primary", use_container_width=True):
-        dest_seed, plan_seed = new_seed(), new_seed()
         if trip_code:
-            try:
-                a, b = trip_code.split("-")
-                dest_seed, plan_seed = int(a), int(b)
-            except ValueError:
-                st.error("旅コードは「数字-数字」の形で入力してください。")
-        generate(cond, dest_seed, plan_seed)
+            parsed = planner.parse_trip_code(trip_code)
+            if parsed is None:
+                st.session_state.error = "旅コードは「数字-数字」または「数字-数字-行き先」の形で入力してください。"
+            else:
+                generate(cond, parsed[0], parsed[1], forced_id=parsed[2])
+        else:
+            generate(cond, new_seed(), new_seed())
 
     st.caption(f"収録：{len(destinations())} か所（国内 {sum(d['region'] != 'overseas' for d in destinations())}・"
                f"海外 {sum(d['region'] == 'overseas' for d in destinations())}）")
@@ -227,7 +242,13 @@ def show_no_result(result: engine.Search, cond: engine.Conditions) -> None:
     hint = engine.budget_hint(result.excluded, cond)
     if hint:
         gap, d = hint
-        st.info(f"予算をあと {render.yen(gap)} 増やすと「{d['name']}」が候補に入ります。")
+        if budget_mode == "1人あたり" and cond.people > 1:
+            per = -(-gap // cond.people)
+            per = -(-per // 1000) * 1000
+            st.info(f"予算を 1 人あたり約 {render.yen(per)}（全員で約 {render.yen(gap)}）増やすと"
+                    f"「{d['name']}」が候補に入ります。")
+        else:
+            st.info(f"予算をあと約 {render.yen(gap)} 増やすと「{d['name']}」が候補に入ります。")
     if cond.nights == 0:
         st.info("日帰りは片道 3.5 時間以内の行き先に限っています。1 泊にすると候補が増えます。")
 
@@ -238,7 +259,7 @@ def show_plan(plan: planner.Plan, level: int) -> None:
              f"概算 {render.yen(plan.total)}"]
     st.markdown(
         f'<div class="trip-hero"><h2>{plan.title}</h2>'
-        f'<div class="meta">{render.dest_names(plan)}（{plan.dest["pref"]}）</div>'
+        f'<div class="meta">{render.dest_names(plan)}（{"・".join(dict.fromkeys(s.dest["pref"] for s in plan.stops))}）</div>'
         + "".join(f'<span class="chip">{x}</span>' for x in chips) + "</div>",
         unsafe_allow_html=True,
     )
@@ -249,7 +270,7 @@ def show_plan(plan: planner.Plan, level: int) -> None:
     b1, b2 = st.columns(2)
     with b1:
         if st.button("🎲 別の行き先で引き直す", use_container_width=True):
-            generate(cond, new_seed(), new_seed())
+            generate(cond, new_seed(), new_seed(), avoid_id=plan.dest["id"])
             st.rerun()
     with b2:
         if st.button("🔁 行き先はそのまま、プランだけ引き直す", use_container_width=True):
@@ -280,12 +301,10 @@ def show_plan(plan: planner.Plan, level: int) -> None:
                     st.rerun()
 
     with st.expander("選ばれた理由とスコア"):
-        s = st.session_state.search
-        if s is not None:
-            st.caption(f"範囲内 {s.scope_count} か所のうち、条件を満たしたのは {len(s.candidates)} か所。"
+        info = plan.search_info
+        if info:
+            st.caption(f"範囲内 {info['scope_count']} か所のうち、条件を満たしたのは {info['candidates']} か所。"
                        "そこからスコアとサプライズ度に応じた重み付き抽選で選んでいます。")
-            if s.genre_relaxed:
-                st.caption("希望ジャンルに合う行き先がなかったため、ジャンル条件をゆるめました。")
         st.markdown(render.score_md(plan))
 
     with st.expander("書き出す・Claude で仕上げる"):
@@ -303,7 +322,7 @@ with col_out:
     if st.session_state.error:
         st.error(st.session_state.error)
     if plan is None:
-        result = st.session_state.search
+        result = st.session_state.no_result
         if result is not None and not result.candidates:
             show_no_result(result, cond)
         else:
@@ -331,4 +350,5 @@ with col_out:
                     elif st.button("表示", key=f"hist_{i}", use_container_width=True):
                         st.session_state.plan = past
                         st.session_state.plan_fp = past.cond.fingerprint()
+                        st.session_state.error = None
                         st.rerun()

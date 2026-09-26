@@ -41,8 +41,9 @@ def test_access_consistency():
             for o in options:
                 if o["mode"] == "flight" and d["region"] != "overseas":
                     assert o["cost"] >= 3000, (d["id"], hub, o)
-                if o["hours"] < 1.0:
-                    assert o["cost"] <= 3000, (d["id"], hub, o)
+                if o["hours"] < 1.0:  # 1 時間未満の移動が 1 万円を超えるのは桁の間違い（新幹線 35 分でも 6 千円弱）
+                    assert o["cost"] <= 10000, (d["id"], hub, o)
+                assert o["cost"] <= 60000 + 12000 * o["hours"], (d["id"], hub, o)
 
 
 CASES = [

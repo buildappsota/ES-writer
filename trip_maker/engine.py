@@ -148,16 +148,51 @@ def effective_hours(option: dict) -> float:
     return max(1.0, option["hours"] - 8) if option.get("overnight") else option["hours"]
 
 
-def choose_access(options: list[dict], cond: Conditions, travel_day: date) -> dict | None:
-    """移動手段の好みに合わせて行き方を 1 つ選ぶ。候補がなければ None。"""
+def _pref_key(option: dict, pref: str) -> tuple:
+    if pref == "cheap":
+        return (option["cost"], option["hours"])
+    if pref == "fast":
+        return (option["hours"], option["cost"])
+    return (option["cost"] + option["hours"] * TIME_VALUE_PER_HOUR,)
+
+
+def legs_problems(out: dict, back: dict, cond: Conditions) -> list[str]:
+    """行き・帰りの組み合わせが旅程として成り立たない理由。"""
+    problems = []
+    transit = int(bool(out.get("overnight"))) + int(bool(back.get("overnight")))
+    if transit and cond.nights < transit + 1:
+        problems.append("夜行の移動を含むため泊数が足りない")
+    if cond.nights == 0 and max(out["hours"], back["hours"]) > DAY_TRIP_MAX_HOURS:
+        problems.append(f"日帰りには遠い（片道 約{out['hours']:.1f} 時間）")
+    if cond.nights > 0 and (effective_hours(out) + effective_hours(back)) \
+            > cond.days * WAKING_HOURS_PER_DAY * MAX_TRAVEL_SHARE:
+        problems.append(f"移動時間が旅程の半分を超える（片道 約{out['hours']:.1f} 時間）")
+    return problems
+
+
+def choose_legs(options: list[dict], cond: Conditions) -> tuple[dict, dict] | None:
+    """移動手段の好みに合わせて、行きと帰りの行き方を選ぶ。
+
+    旅程として成り立つ組み合わせ（夜行の泊数・日帰りの所要・移動時間の割合）の中から
+    好みの順で選ぶ。成り立つものがなければ、好みでいちばんの組み合わせを返す
+    （除外理由の表示に使う）。使える行き方がなければ None。
+    """
     usable = [o for o in options if not (cond.transport_pref == "no_flight" and o["mode"] == "flight")]
     if not usable:
         return None
-    if cond.transport_pref == "cheap":
-        return min(usable, key=lambda o: (o["cost"], o["hours"]))
-    if cond.transport_pref == "fast":
-        return min(usable, key=lambda o: (o["hours"], o["cost"]))
-    return min(usable, key=lambda o: o["cost"] + o["hours"] * TIME_VALUE_PER_HOUR)
+    combos = sorted(((o, b) for o in usable for b in usable),
+                    key=lambda ob: tuple(x + y for x, y in zip(_pref_key(ob[0], cond.transport_pref),
+                                                               _pref_key(ob[1], cond.transport_pref))))
+    for out, back in combos:
+        if not legs_problems(out, back, cond):
+            return out, back
+    return combos[0]
+
+
+def choose_access(options: list[dict], cond: Conditions, travel_day: date | None = None) -> dict | None:
+    """行きの行き方だけが必要なとき用（周遊の 2 か所目の帰りなど）。"""
+    legs = choose_legs(options, cond)
+    return legs[1] if legs else None
 
 
 def meals_per_day_cost(dest: dict, tier: str) -> dict[str, float]:
@@ -180,18 +215,42 @@ def lodging_cost(dest: dict, tier: str, cond: Conditions, nights: list[date]) ->
     return int(round(total * units(cond.adults, cond.kids, "lodging"), -1))
 
 
-def food_estimate(dest: dict, tier: str, cond: Conditions, days: int, lodging_nights: int) -> int:
-    """食費の見積もり。宿に含まれる食事（朝食・夕食）は差し引く。"""
-    m = meals_per_day_cost(dest, tier)
-    per_person = (m["breakfast"] + m["lunch"] + m["dinner"] + m["snack"]) * days
-    meals_included = dest["lodging"][tier]["meals"] if lodging_nights else 0
-    if meals_included >= 1:
-        per_person -= m["breakfast"] * lodging_nights
-    if meals_included >= 2:
-        per_person -= m["dinner"] * lodging_nights
-    if lodging_nights == 0:  # 日帰りは朝食を家で済ませる前提
-        per_person -= m["breakfast"] * days
+NAMED_FOOD_TIER_RATE = {"budget": 0.85, "standard": 1.0, "premium": 1.3}
+SPOTS_PER_DAY = {"relaxed": 2, "normal": 3, "packed": 4}
+
+
+def expected_meal_cost(dest: dict, tier: str, slot: str) -> float:
+    """1 人 1 食の期待値。旅程では名物を優先して使うので、名物の平均と基準額の中間をとる。"""
+    base = meals_per_day_cost(dest, tier)[slot]
+    named = [f["price"] for f in dest["foods"] if f["meal"] == slot]
+    if not named:
+        return base
+    return (sum(named) / len(named) * NAMED_FOOD_TIER_RATE[tier] + base) / 2
+
+
+def sightseeing_days(cond: Conditions, out: dict, back: dict) -> int:
+    """現地で過ごす日数（夜行の出発日・帰着日を除く）。"""
+    return cond.days - int(bool(out.get("overnight"))) - int(bool(back.get("overnight")))
+
+
+def food_estimate(dest: dict, tier: str, cond: Conditions, out: dict, back: dict, lodging_nights: int) -> int:
+    """食費の見積もり。旅程と同じく、朝食は泊まった翌朝だけ、宿に含まれる食事は 0 円で数える。"""
+    days = sightseeing_days(cond, out, back)
+    meal = {slot: expected_meal_cost(dest, tier, slot) for slot in ("breakfast", "lunch", "dinner", "snack")}
+    included = dest["lodging"][tier]["meals"] if lodging_nights else 0
+    per_person = (meal["lunch"] + meal["snack"]) * days
+    per_person += meal["breakfast"] * lodging_nights * (included < 1)
+    per_person += meal["dinner"] * lodging_nights * (included < 2)
+    per_person += meal["lunch"]  # 最終日（日帰りは帰り）の車内・現地での夕食ぶん
     return int(round(per_person * units(cond.adults, cond.kids, "food"), -1))
+
+
+def activities_estimate(dest: dict, cond: Conditions, days: int) -> int:
+    """入場料・体験料の見積もり。その行き先のスポット料金の平均 × 1 日に回る数 × 日数。"""
+    costs = [s["cost"] for s in dest["spots"]]
+    avg = sum(costs) / len(costs) if costs else ACTIVITY_ESTIMATE_PER_DAY / 3
+    per_day = avg * SPOTS_PER_DAY[cond.pace]
+    return int(round(per_day * max(1, days) * units(cond.adults, cond.kids, "spot"), -1))
 
 
 @dataclass
@@ -223,33 +282,26 @@ def stay_nights(cond: Conditions, out: dict, back: dict) -> list[date]:
 def estimate(dest: dict, cond: Conditions, tier_override: str | None = None) -> Estimate:
     """旅程を組む前の概算。宿は予算内でいちばん良い段階を選ぶ。"""
     excluded: list[str] = []
-    opts = dest["access"].get(cond.hub, [])
-    out = choose_access(opts, cond, cond.start_date)
-    back = choose_access(opts, cond, cond.end_date)
-    if out is None or back is None:
+    legs = choose_legs(dest["access"].get(cond.hub, []), cond)
+    if legs is None:
         return Estimate(dest, None, None, None, {}, 0, False, ["移動手段の条件に合う行き方がない"], 0.0, 0)
+    out, back = legs
 
     transit = int(bool(out.get("overnight"))) + int(bool(back.get("overnight")))
     hours = out["hours"]
     nights_at_stay = stay_nights(cond, out, back)
-    days = cond.days
+    days = sightseeing_days(cond, out, back)
 
     if cond.nights < dest["min_nights"]:
         excluded.append(f"最低 {dest['min_nights']} 泊は必要")
-    if transit and cond.nights < transit + 1:
-        excluded.append("夜行の移動を含むため泊数が足りない")
-    if cond.nights == 0 and hours > DAY_TRIP_MAX_HOURS:
-        excluded.append(f"日帰りには遠い（片道 約{hours:.1f} 時間）")
-    if cond.nights > 0 and (effective_hours(out) + effective_hours(back)) > days * WAKING_HOURS_PER_DAY * MAX_TRAVEL_SHARE:
-        excluded.append(f"移動時間が旅程の半分を超える（片道 約{hours:.1f} 時間）")
+    excluded += legs_problems(out, back, cond)
     bad_months = cond.trip_months() & set(dest["avoid_months"])
     if bad_months:
         excluded.append(f"{'・'.join(str(m) for m in sorted(bad_months))}月は現実的でない（閉鎖・運休など）")
 
     transport = access_cost(out, cond, cond.start_date) + access_cost(back, cond, cond.end_date)
     local = local_transport_cost(dest, cond, days)
-    activities = int(round(ACTIVITY_ESTIMATE_PER_DAY * dest["price_level"] * days
-                           * units(cond.adults, cond.kids, "spot"), -1))
+    activities = activities_estimate(dest, cond, days)
 
     tiers = ["premium", "standard", "budget"]
     if tier_override:
@@ -262,7 +314,7 @@ def estimate(dest: dict, cond: Conditions, tier_override: str | None = None) -> 
     fallback: tuple[str, dict[str, int], int] | None = None
     for tier in tiers:
         lodging = lodging_cost(dest, tier, cond, nights_at_stay) if nights_at_stay else 0
-        food = food_estimate(dest, tier, cond, days, len(nights_at_stay))
+        food = food_estimate(dest, tier, cond, out, back, len(nights_at_stay))
         breakdown = {"transport": transport, "lodging": lodging, "food": food,
                      "local": local, "activities": activities}
         total = sum(breakdown.values())
@@ -403,24 +455,35 @@ def budget_hint(excluded: list[Estimate], cond: Conditions) -> tuple[int, dict] 
     return e.total - cond.budget_total, e.dest
 
 
-def explain(cand: Candidate, cond: Conditions, total: int | None = None) -> list[str]:
-    """この行き先が選ばれた理由（人が読める形）。"""
+def explain(cand: Candidate, cond: Conditions, total: int | None = None, genre_relaxed: bool = False) -> list[str]:
+    """この行き先が選ばれた理由（人が読める形）。条件に合っていない点も隠さない。"""
     d = cand.dest
     reasons = []
-    if cond.genres:
+    if genre_relaxed:
+        wanted = "・".join(GENRES[g] for g in cond.genres)
+        reasons.append(f"希望ジャンル（{wanted}）に合う行き先が条件内になかったため、ジャンルを問わずに選んだ")
+    elif cond.genres:
         hits = [GENRES[g] for g in cond.genres if d["genres"].get(g, 0) >= 2]
         if hits:
             reasons.append(f"希望ジャンルのうち「{'・'.join(hits)}」が強い")
+        else:
+            reasons.append("希望ジャンルは少しだけ楽しめる程度（サプライズ度が高いため）")
     else:
         top = sorted(d["genres"].items(), key=lambda kv: -kv[1])[:2]
         reasons.append(f"ジャンルおまかせ → 「{'・'.join(GENRES[g] for g, _ in top)}」が持ち味の場所")
+
     diff = d["niche"] - cond.niche
     label = NICHE_LABELS[d["niche"]]
     if diff == 0:
         reasons.append(f"王道〜ニッチの好み（{NICHE_LABELS[cond.niche]}）にぴったり")
     else:
         direction = "ニッチ寄り" if diff > 0 else "王道寄り"
-        reasons.append(f"好みより少し{direction}の「{label}」（サプライズ枠）")
+        degree = "少し" if abs(diff) == 1 else "かなり"
+        if cond.surprise >= 3:
+            reasons.append(f"好みより{degree}{direction}の「{label}」（サプライズ枠）")
+        else:
+            reasons.append(f"好みより{degree}{direction}の「{label}」（ほかの条件を満たす中で近いものを選んだ）")
+
     if cond.trip_months() & set(d["best_months"]):
         reasons.append("旅行する月がベストシーズン")
     fit = d["fit"][cond.relation]
@@ -428,7 +491,10 @@ def explain(cand: Candidate, cond: Conditions, total: int | None = None) -> list
         reasons.append(f"{RELATIONS[cond.relation]}との相性がとても良い")
     elif fit <= 1:
         reasons.append(f"{RELATIONS[cond.relation]}向けの定番ではない（意外性枠）")
+
     total = cand.est.total if total is None else total
-    usage = total / cond.budget_total * 100 if cond.budget_total else 0
-    reasons.append(f"概算で予算の {usage:.0f}% に収まる")
+    if cond.budget_total and total > cond.budget_total:
+        reasons.append(f"概算は予算を約 {total - cond.budget_total:,} 円オーバー")
+    elif cond.budget_total:
+        reasons.append(f"概算で予算の {total / cond.budget_total * 100:.0f}% に収まる")
     return reasons
