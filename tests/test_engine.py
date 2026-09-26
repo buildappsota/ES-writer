@@ -207,4 +207,4 @@ def test_explain_niche_wording_depends_on_gap_and_surprise():
 def test_explain_mentions_relaxed_genre():
     result = engine.search([ONOMICHI], cond(genres=["beach"]))
     text = " ".join(engine.explain(result.candidates[0], cond(genres=["beach"]), genre_relaxed=True))
-    assert "海・リゾート" in text and "問わず" in text
+    assert "海・リゾート" in text and "条件内になかった" in text

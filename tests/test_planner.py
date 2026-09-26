@@ -283,3 +283,55 @@ def test_time_window_rules_on_fixtures():
             c = cond(nights=nights, genres=["gourmet", "town"], surprise=3)
             plan = make(c, dests=[d, make_kurashiki()], seed=seed)
             assert violations(plan) == [], violations(plan)
+
+
+# ── 2 回目のレビュー指摘の回帰テスト ─────────────────────────────────
+from trip_maker import rules  # noqa: E402
+
+
+def test_estimate_ignores_drinks_when_pricing_meals():
+    d = copy.deepcopy(ONOMICHI)
+    d["foods"] = [f for f in d["foods"] if f["meal"] != "dinner"] + [
+        {"name": "瀬戸内の地酒", "price": 800, "meal": "dinner", "note": "テスト"}]
+    c = cond(nights=2, lodging_pref="budget", genres=[])
+    assert engine.named_foods(d, "dinner") == []
+    per_dinner = engine.meals_total(d, "budget", "dinner", 1)
+    assert per_dinner == engine.generic_meal_cost(d, "budget", "dinner")
+
+
+def test_second_stop_respects_scope_hub_and_no_flight():
+    base = copy.deepcopy(ONOMICHI)
+    hub_city = make_kurashiki()
+    hub_city["id"] = "hubcity"
+    for hub in hub_city["access"]:
+        hub_city["access"][hub] = [{"mode": "rail", "route": "市内の電車", "hours": 0.5, "cost": 300}]
+    flight_link = make_kurashiki()
+    flight_link["id"] = "flyaway"
+    base["nearby"] = [{"id": "hubcity", "hours": 1.0, "cost": 1000, "route": "尾道→（JR）→市内"},
+                      {"id": "flyaway", "hours": 2.0, "cost": 20000, "route": "広島空港→（飛行機）→遠くの空港"}]
+    dests = [base, hub_city, flight_link]
+    plan = make(cond(nights=5, multi_stop="on", transport_pref="no_flight"), dests=dests)
+    assert len(plan.stops) == 1
+    plan = make(cond(nights=5, multi_stop="on"), dests=dests)
+    assert [s.dest["id"] for s in plan.stops] == ["onomichi_shimanami", "flyaway"]
+    assert rules.link_mode(plan.transfer) == "flight"
+
+
+def test_full_day_spot_is_scheduled_with_early_start():
+    d = copy.deepcopy(ONOMICHI)
+    d["spots"].append({"name": "丸一日の島めぐりツアー", "area": "しまなみ海道", "kind": "activity",
+                       "genres": ["activity", "nature"], "niche": 3, "hours": 9.0, "cost": 0,
+                       "when": ["morning", "day"], "indoor": False, "fit": ["friends", "couple"], "note": "テスト"})
+    c = cond(nights=3, genres=["activity"], multi_stop="off")
+    plan = make(c, dests=[d, make_kurashiki()])
+    blocks = [b for day in plan.days for b in day.blocks if b.title == "丸一日の島めぐりツアー"]
+    assert blocks and rules.fits_time(blocks[0].spot, blocks[0].start, blocks[0].end)
+    assert violations(plan) == []
+
+
+def test_morning_and_evening_spot_never_at_midday():
+    s = {"when": ["morning", "evening"]}
+    assert rules.fits_time(s, 9 * 60, 10 * 60)
+    assert rules.fits_time(s, 17 * 60, 18 * 60)
+    assert not rules.fits_time(s, 13 * 60, 14 * 60)
+    assert rules.earliest_begin(s, 13 * 60, 60, 24 * 60) == 16 * 60

@@ -1,17 +1,8 @@
 """旅程が満たすべき性質のチェック（テストと調査スクリプトの両方で使う）。"""
 
 from trip_maker import planner
-from trip_maker.planner import (
-    DAY_END,
-    EVENING_START,
-    MORNING_LATEST_START,
-    Plan,
-    is_daytime_only,
-    is_evening_only,
-    is_morning_only,
-    is_night_spot,
-    is_open,
-)
+from trip_maker.planner import Plan, is_night_spot, is_open
+from trip_maker.rules import fits_time, link_mode
 
 
 def violations(plan: Plan) -> list[str]:
@@ -32,14 +23,9 @@ def violations(plan: Plan) -> list[str]:
                 seen.add(s["name"])
                 if not is_open(s, day.date):
                     out.append(f"{tag} 休み・季節外に訪問: {s['name']}")
-                if is_morning_only(s) and b.start > MORNING_LATEST_START:
-                    out.append(f"{tag} 朝のスポットが {planner.fmt_time(b.start)}: {s['name']}")
-                if is_evening_only(s) and b.start < EVENING_START:
-                    out.append(f"{tag} 夕方のスポットが {planner.fmt_time(b.start)}: {s['name']}")
-                if is_daytime_only(s) and b.end > DAY_END:
-                    out.append(f"{tag} 日中のスポットが {planner.fmt_time(b.end)} まで: {s['name']}")
-                if is_night_spot(s) and b.start < 19 * 60:
-                    out.append(f"{tag} 夜のスポットが {planner.fmt_time(b.start)}: {s['name']}")
+                if not fits_time(s, b.start, b.end):
+                    out.append(f"{tag} 時間帯の外: {s['name']} {planner.fmt_time(b.start)}〜"
+                               f"{planner.fmt_time(b.end)} when={s['when']}")
             if b.kind == "meal" and b.start > 22 * 60 + 30:
                 out.append(f"{tag} 深夜の食事: {b.title} {planner.fmt_time(b.start)}")
         if day.kind not in ("transit", "home"):
@@ -66,6 +52,18 @@ def violations(plan: Plan) -> list[str]:
     transit = sum(1 for o in (plan.access_out, plan.access_back) if o.get("overnight"))
     if lodging_nights + transit != plan.cond.nights:
         out.append(f"{did} 泊数が合わない: 宿 {lodging_nights} + 夜行 {transit} != {plan.cond.nights}")
-    if plan.over_budget and any("収まる" in r for r in plan.reasons):
+    if plan.over_budget and any("% に収まる" in r for r in plan.reasons):
         out.append(f"{did} 予算オーバーなのに「収まる」と説明")
+    c = plan.cond
+    for st in plan.stops[1:]:
+        d = st.dest
+        if c.scope != "both" and (c.scope == "domestic") != (d["region"] != "overseas"):
+            out.append(f"{did} 周遊先が範囲外: {d['id']}")
+        if min(o["hours"] for o in d["access"][c.hub]) <= planner.HUB_CITY_HOURS:
+            out.append(f"{did} 周遊先が出発地: {d['id']}")
+    if plan.transfer and c.transport_pref == "no_flight" and link_mode(plan.transfer) == "flight":
+        out.append(f"{did} 飛行機なしなのに周遊の移動が飛行機")
+    for day in plan.days:
+        if day.mission in planner.EVENING_MISSIONS and not day.lodging:
+            out.append(f"{did} Day{day.number} 夜のミッションなのに現地に泊まらない")
     return out

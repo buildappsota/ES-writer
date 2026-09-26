@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from .constants import GENRES, NICHE_LABELS, RELATIONS
+from .rules import DINNER_BEFORE_RETURN, ON_BOARD_DINNER_FROM, back_times, in_scope, is_drink
 
 # ── 費用モデルの係数（根拠は README の「費用の計算方法」を参照） ──────────
 # 子ども（小学生以下）の費用倍率。鉄道の小児運賃は大人の半額、国内線の小児運賃は
@@ -50,9 +51,6 @@ TIME_VALUE_PER_HOUR = 2000
 DAY_TRIP_MAX_HOURS = 3.5
 MAX_TRAVEL_SHARE = 0.5
 WAKING_HOURS_PER_DAY = 14
-
-# 見どころの入場料・体験料の事前見積もり（1 人 1 日あたり）
-ACTIVITY_ESTIMATE_PER_DAY = 1500
 
 # サプライズ度 → ソフトマックス温度（None は完全ランダム）
 SURPRISE_TEMPERATURE = {1: 0.02, 2: 0.05, 3: 0.1, 4: 0.2, 5: None}
@@ -217,15 +215,32 @@ def lodging_cost(dest: dict, tier: str, cond: Conditions, nights: list[date]) ->
 
 NAMED_FOOD_TIER_RATE = {"budget": 0.85, "standard": 1.0, "premium": 1.3}
 SPOTS_PER_DAY = {"relaxed": 2, "normal": 3, "packed": 4}
+# 旅程側でいちばん強く節約したとき（planner.CAP_STEPS の最後）の上限。見積もりの下限計算に使う
+FLOOR_SPOT_CAP = 0          # 有料スポットを外す（無料の見どころだけで回る）
+FLOOR_MEAL_CAP = 1800
+DRINK_CHANCE = 0.5          # お酒ジャンルを選んでいないとき、夕食に地酒などを添える確率
 
 
-def expected_meal_cost(dest: dict, tier: str, slot: str) -> float:
-    """1 人 1 食の期待値。旅程では名物を優先して使うので、名物の平均と基準額の中間をとる。"""
+def generic_meal_cost(dest: dict, tier: str, slot: str, meal_cap: int | None = None) -> float:
+    """名物がないときの 1 人 1 食の額。節約の上限があればそこで頭打ちにする。"""
     base = meals_per_day_cost(dest, tier)[slot]
-    named = [f["price"] for f in dest["foods"] if f["meal"] == slot]
-    if not named:
-        return base
-    return (sum(named) / len(named) * NAMED_FOOD_TIER_RATE[tier] + base) / 2
+    return min(base, meal_cap) if meal_cap is not None else base
+
+
+def named_foods(dest: dict, slot: str, meal_cap: int | None = None) -> list[dict]:
+    """その食事枠で使う名物（酒類を除く。節約の上限があれば、それ以下のものだけ）。"""
+    return [f for f in dest["foods"] if f["meal"] == slot and not is_drink(f)
+            and (meal_cap is None or f["price"] <= meal_cap)]
+
+
+def meals_total(dest: dict, tier: str, slot: str, count: int, meal_cap: int | None = None) -> float:
+    """その食事枠を count 回とるときの 1 人あたり合計。旅程と同じく名物を先に使い、尽きたら一般的な店。"""
+    if count <= 0:
+        return 0.0
+    named = named_foods(dest, slot, meal_cap)
+    k = min(count, len(named))
+    avg = sum(f["price"] for f in named) / len(named) if named else 0
+    return k * avg * NAMED_FOOD_TIER_RATE[tier] + (count - k) * generic_meal_cost(dest, tier, slot, meal_cap)
 
 
 def sightseeing_days(cond: Conditions, out: dict, back: dict) -> int:
@@ -233,24 +248,63 @@ def sightseeing_days(cond: Conditions, out: dict, back: dict) -> int:
     return cond.days - int(bool(out.get("overnight"))) - int(bool(back.get("overnight")))
 
 
-def food_estimate(dest: dict, tier: str, cond: Conditions, out: dict, back: dict, lodging_nights: int) -> int:
-    """食費の見積もり。旅程と同じく、朝食は泊まった翌朝だけ、宿に含まれる食事は 0 円で数える。"""
+def return_meal(back: dict, tz: float) -> str | None:
+    """帰る日の夕方の食事のとり方（旅程と同じ規則）。dinner＝現地で夕食 / quick＝車内などで軽く / None。"""
+    depart, _ = back_times(back, tz)
+    if depart >= DINNER_BEFORE_RETURN:
+        return "dinner"
+    if ON_BOARD_DINNER_FROM <= depart <= 21 * 60 and not back.get("overnight"):
+        return "quick"
+    if back.get("overnight"):   # 昼に出る長い船旅：船内で夕食
+        return "quick"
+    return None
+
+
+def onboard_meals(option: dict) -> int:
+    """長い夜行（16 時間以上）の船・バスの中でとる食事の回数。"""
+    return 2 if option.get("overnight") and option["hours"] >= 16 else 0
+
+
+def food_estimate(dest: dict, tier: str, cond: Conditions, out: dict, back: dict, lodging_nights: int,
+                  meal_cap: int | None = None, drinks: bool = True, snacks: bool = True) -> int:
+    """食費の見積もり。旅程と同じ規則で、何をいくつ食べるかを数える。"""
     days = sightseeing_days(cond, out, back)
-    meal = {slot: expected_meal_cost(dest, tier, slot) for slot in ("breakfast", "lunch", "dinner", "snack")}
     included = dest["lodging"][tier]["meals"] if lodging_nights else 0
-    per_person = (meal["lunch"] + meal["snack"]) * days
-    per_person += meal["breakfast"] * lodging_nights * (included < 1)
-    per_person += meal["dinner"] * lodging_nights * (included < 2)
-    per_person += meal["lunch"]  # 最終日（日帰りは帰り）の車内・現地での夕食ぶん
-    return int(round(per_person * units(cond.adults, cond.kids, "food"), -1))
+    tz = dest.get("tz_offset", 0)
+    quick = generic_meal_cost(dest, tier, "lunch", meal_cap)
+    per_person = meals_total(dest, tier, "lunch", days, meal_cap)
+    if snacks:
+        per_person += meals_total(dest, tier, "snack", min(days, len(named_foods(dest, "snack", meal_cap))), meal_cap)
+    breakfasts = (lodging_nights if included < 1 else 0) + (1 if out.get("overnight") else 0)
+    per_person += meals_total(dest, tier, "breakfast", breakfasts, meal_cap)
+    dinners = lodging_nights if included < 2 else 0
+    last = return_meal(back, tz)
+    dinners += last == "dinner"
+    per_person += meals_total(dest, tier, "dinner", dinners, meal_cap)
+    per_person += quick * ((last == "quick") + onboard_meals(out) + onboard_meals(back))
+    total = per_person * units(cond.adults, cond.kids, "food")
+    if drinks:
+        drink_list = [f for f in dest["foods"] if is_drink(f)]
+        eligible = min(lodging_nights + (last == "dinner"), len(drink_list))
+        if drink_list and eligible:
+            avg = sum(f["price"] for f in drink_list) / len(drink_list)
+            chance = 1.0 if "drink" in cond.genres else DRINK_CHANCE
+            total += eligible * avg * cond.adults * chance
+    return int(round(total, -1))
 
 
-def activities_estimate(dest: dict, cond: Conditions, days: int) -> int:
-    """入場料・体験料の見積もり。その行き先のスポット料金の平均 × 1 日に回る数 × 日数。"""
-    costs = [s["cost"] for s in dest["spots"]]
-    avg = sum(costs) / len(costs) if costs else ACTIVITY_ESTIMATE_PER_DAY / 3
-    per_day = avg * SPOTS_PER_DAY[cond.pace]
-    return int(round(per_day * max(1, days) * units(cond.adults, cond.kids, "spot"), -1))
+def activities_estimate(dest: dict, cond: Conditions, days: int, spot_cap: int | None = None) -> int:
+    """入場料・体験料の見積もり。1 日に回る数 × 日数（スポット数が上限）× 代表的な料金。
+
+    料金は平均と中央値の中間をとる（高額ツアーが 1〜2 件あるだけで膨らまないように）。
+    """
+    costs = sorted(s["cost"] for s in dest["spots"] if spot_cap is None or s["cost"] <= spot_cap)
+    if not costs:
+        return 0
+    mean = sum(costs) / len(costs)
+    median = costs[len(costs) // 2]
+    visits = min(SPOTS_PER_DAY[cond.pace] * max(1, days), len(costs))
+    return int(round(visits * (mean + median) / 2 * units(cond.adults, cond.kids, "spot"), -1))
 
 
 @dataclass
@@ -262,11 +316,13 @@ class Estimate:
     access_out: dict | None
     access_back: dict | None
     breakdown: dict[str, int]
-    total: int
+    total: int                      # 期待値（宿の段階はこれで選ぶ）
     feasible: bool
     reasons_excluded: list[str]
     one_way_hours: float
     transit_nights: int
+    floor: int = 0                  # いちばん節約したときの見込み（予算で絞り込むときはこちら）
+    cheap_legs: tuple[dict, dict] | None = None   # 節約するときに使う行き方
 
 
 def stay_nights(cond: Conditions, out: dict, back: dict) -> list[date]:
@@ -279,18 +335,42 @@ def stay_nights(cond: Conditions, out: dict, back: dict) -> list[date]:
     return nights
 
 
+def cheapest_legs(options: list[dict], cond: Conditions) -> tuple[dict, dict] | None:
+    """旅程として成り立つ中でいちばん安い行き方（速さ優先のときは好みを尊重して使わない）。"""
+    if cond.transport_pref == "fast":
+        return None
+    usable = [o for o in options if not (cond.transport_pref == "no_flight" and o["mode"] == "flight")]
+    combos = sorted(((o, b) for o in usable for b in usable), key=lambda ob: (ob[0]["cost"] + ob[1]["cost"],
+                                                                            ob[0]["hours"] + ob[1]["hours"]))
+    return next(((o, b) for o, b in combos if not legs_problems(o, b, cond)), None)
+
+
+def _breakdown(dest: dict, cond: Conditions, tier: str, out: dict, back: dict, spot_cap: int | None = None,
+               meal_cap: int | None = None, drinks: bool = True, snacks: bool = True) -> dict[str, int]:
+    nights = stay_nights(cond, out, back)
+    days = sightseeing_days(cond, out, back)
+    return {
+        "transport": access_cost(out, cond, cond.start_date) + access_cost(back, cond, cond.end_date),
+        "lodging": lodging_cost(dest, tier, cond, nights) if nights else 0,
+        "food": food_estimate(dest, tier, cond, out, back, len(nights), meal_cap, drinks, snacks),
+        "local": local_transport_cost(dest, cond, days),
+        "activities": activities_estimate(dest, cond, days, spot_cap),
+    }
+
+
 def estimate(dest: dict, cond: Conditions, tier_override: str | None = None) -> Estimate:
-    """旅程を組む前の概算。宿は予算内でいちばん良い段階を選ぶ。"""
+    """旅程を組む前の概算。
+
+    宿は、期待値で予算に収まるいちばん良い段階を選ぶ。予算で絞り込むときは、旅程側で
+    できる節約（宿を節約に・高額な体験や料理を外す・安い行き方）をすべてしたときの見込み
+    （floor）で判定する。こうすると「見積もりでは無理なのに旅程では組める」行き先を落とさない。
+    """
     excluded: list[str] = []
-    legs = choose_legs(dest["access"].get(cond.hub, []), cond)
+    options = dest["access"].get(cond.hub, [])
+    legs = choose_legs(options, cond)
     if legs is None:
         return Estimate(dest, None, None, None, {}, 0, False, ["移動手段の条件に合う行き方がない"], 0.0, 0)
     out, back = legs
-
-    transit = int(bool(out.get("overnight"))) + int(bool(back.get("overnight")))
-    hours = out["hours"]
-    nights_at_stay = stay_nights(cond, out, back)
-    days = sightseeing_days(cond, out, back)
 
     if cond.nights < dest["min_nights"]:
         excluded.append(f"最低 {dest['min_nights']} 泊は必要")
@@ -299,36 +379,41 @@ def estimate(dest: dict, cond: Conditions, tier_override: str | None = None) -> 
     if bad_months:
         excluded.append(f"{'・'.join(str(m) for m in sorted(bad_months))}月は現実的でない（閉鎖・運休など）")
 
-    transport = access_cost(out, cond, cond.start_date) + access_cost(back, cond, cond.end_date)
-    local = local_transport_cost(dest, cond, days)
-    activities = activities_estimate(dest, cond, days)
-
     tiers = ["premium", "standard", "budget"]
     if tier_override:
         tiers = [tier_override]
     elif cond.lodging_pref != "auto":
-        start = tiers.index(cond.lodging_pref)
-        tiers = tiers[start:]
+        tiers = tiers[tiers.index(cond.lodging_pref):]
 
-    best: tuple[str, dict[str, int], int] | None = None
-    fallback: tuple[str, dict[str, int], int] | None = None
+    cheap = cheapest_legs(options, cond)
+    chosen = None
     for tier in tiers:
-        lodging = lodging_cost(dest, tier, cond, nights_at_stay) if nights_at_stay else 0
-        food = food_estimate(dest, tier, cond, out, back, len(nights_at_stay))
-        breakdown = {"transport": transport, "lodging": lodging, "food": food,
-                     "local": local, "activities": activities}
-        total = sum(breakdown.values())
-        fallback = (tier, breakdown, total)
-        if total <= cond.budget_total:
-            best = (tier, breakdown, total)
+        breakdown = _breakdown(dest, cond, tier, out, back)
+        if sum(breakdown.values()) <= cond.budget_total:
+            chosen = (tier, breakdown)
             break
-    if best is None:
-        tier, breakdown, total = fallback  # いちばん安い段階でも予算超過
-        excluded.append(f"予算オーバー（最安でも約 {total:,} 円）")
-    else:
-        tier, breakdown, total = best
+    if chosen is None and cheap is not None and cheap != (out, back) and cond.transport_pref == "auto":
+        # 好みの行き方では収まらないが、安い行き方なら収まる → 安い行き方にする
+        for tier in tiers:
+            breakdown = _breakdown(dest, cond, tier, *cheap)
+            if sum(breakdown.values()) <= cond.budget_total:
+                out, back = cheap
+                chosen = (tier, breakdown)
+                break
+    if chosen is None:
+        chosen = (tiers[-1], _breakdown(dest, cond, tiers[-1], out, back))
+    tier, breakdown = chosen
+    total = sum(breakdown.values())
 
-    return Estimate(dest, tier, out, back, breakdown, total, not excluded, excluded, hours, transit)
+    floor_legs = cheap or (out, back)
+    floor = sum(_breakdown(dest, cond, tiers[-1], *floor_legs, spot_cap=FLOOR_SPOT_CAP,
+                           meal_cap=FLOOR_MEAL_CAP, drinks=False, snacks=False).values())
+    if floor > cond.budget_total:
+        excluded.append(f"予算オーバー（いちばん節約しても約 {floor:,} 円かかる見込み）")
+
+    transit = int(bool(out.get("overnight"))) + int(bool(back.get("overnight")))
+    return Estimate(dest, tier, out, back, breakdown, total, not excluded, excluded, out["hours"], transit,
+                    floor=floor, cheap_legs=cheap)
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -391,8 +476,19 @@ class Search:
 
     candidates: list[Candidate]           # 条件を満たす行き先（スコア順）
     excluded: list[Estimate]              # 条件を満たさなかった行き先
-    genre_relaxed: bool                   # ジャンル条件をゆるめたか
+    genre_relaxed: bool                   # ジャンル条件をゆるめたか（genre_level == 0）
     scope_count: int                      # 範囲（国内/海外）内の行き先数
+    genre_level: int | None = None        # 2=希望ジャンルが強い所だけ / 1=少し楽しめる所まで / 0=問わず / None=絞っていない
+    premium_missing: bool = False         # 「贅沢したい」なのに贅沢な宿が予算内の行き先がなかった
+
+    @property
+    def niches(self) -> set[int]:
+        return {c.dest["niche"] for c in self.candidates}
+
+    def info(self) -> dict:
+        return {"scope_count": self.scope_count, "candidates": len(self.candidates),
+                "genre_level": self.genre_level, "premium_missing": self.premium_missing,
+                "niches": sorted(self.niches)}
 
 
 def _genre_ok(dest: dict, wanted: list[str], min_strength: int) -> bool:
@@ -401,32 +497,35 @@ def _genre_ok(dest: dict, wanted: list[str], min_strength: int) -> bool:
 
 def search(destinations: list[dict], cond: Conditions) -> Search:
     """条件で絞り込み、スコア順の候補を返す。"""
-    in_scope = [
-        d for d in destinations
-        if d["id"] not in cond.exclude_ids
-        and (cond.scope == "both"
-             or (cond.scope == "domestic") == (d["region"] != "overseas"))
-    ]
-    estimates = [estimate(d, cond) for d in in_scope]
+    pool = [d for d in destinations if d["id"] not in cond.exclude_ids and in_scope(d, cond.scope)]
+    estimates = [estimate(d, cond) for d in pool]
     feasible = [e for e in estimates if e.feasible]
     excluded = [e for e in estimates if not e.feasible]
 
-    genre_relaxed = False
+    genre_level = None
     if cond.genres and cond.surprise <= 3:
-        strict = [e for e in feasible if _genre_ok(e.dest, cond.genres, 2)]
-        if not strict:
-            strict = [e for e in feasible if _genre_ok(e.dest, cond.genres, 1)]
-        if strict:
-            feasible = strict
-        elif feasible:
-            genre_relaxed = True
+        for level in (2, 1):
+            matched = [e for e in feasible if _genre_ok(e.dest, cond.genres, level)]
+            if matched:
+                feasible, genre_level = matched, level
+                break
+        else:
+            genre_level = 0 if feasible else None
+
+    premium_missing = False
+    if cond.lodging_pref == "premium" and cond.nights > 0 and cond.surprise <= 3 and feasible:
+        premium = [e for e in feasible if e.tier == "premium"]
+        if premium:
+            feasible = premium
+        else:
+            premium_missing = True
 
     candidates = []
     for e in feasible:
         parts = score_destination(e, cond)
         candidates.append(Candidate(e, parts, total_score(parts)))
     candidates.sort(key=lambda c: c.score, reverse=True)
-    return Search(candidates, excluded, genre_relaxed, len(in_scope))
+    return Search(candidates, excluded, genre_level == 0, len(pool), genre_level, premium_missing)
 
 
 def pick(candidates: list[Candidate], surprise: int, rng: random.Random, k: int = 1) -> list[Candidate]:
@@ -446,28 +545,40 @@ def pick(candidates: list[Candidate], surprise: int, rng: random.Random, k: int 
 
 
 def budget_hint(excluded: list[Estimate], cond: Conditions) -> tuple[int, dict] | None:
-    """予算だけが理由で外れた行き先のうち、あといくらで届くかが最小のもの。"""
+    """予算だけが理由で外れた行き先のうち、あといくら（節約した場合）で届くかが最小のもの。"""
     only_budget = [e for e in excluded
                    if len(e.reasons_excluded) == 1 and e.reasons_excluded[0].startswith("予算オーバー")]
     if not only_budget:
         return None
-    e = min(only_budget, key=lambda e: e.total)
-    return e.total - cond.budget_total, e.dest
+    e = min(only_budget, key=lambda e: e.floor)
+    gap = e.floor - cond.budget_total
+    return (gap, e.dest) if gap > 0 else None
 
 
-def explain(cand: Candidate, cond: Conditions, total: int | None = None, genre_relaxed: bool = False) -> list[str]:
-    """この行き先が選ばれた理由（人が読める形）。条件に合っていない点も隠さない。"""
+def explain(cand: Candidate, cond: Conditions, total: int | None = None, genre_relaxed: bool = False,
+            info: dict | None = None) -> list[str]:
+    """この行き先が選ばれた理由（人が読める形）。条件に合っていない点も、理由とともに正直に書く。
+
+    info は Search.info()（ジャンルをどこまでゆるめたか、候補にあったニッチ度など）。
+    """
+    info = info or {}
     d = cand.dest
     reasons = []
-    if genre_relaxed:
+    level = 0 if genre_relaxed else info.get("genre_level")
+    if cond.genres:
         wanted = "・".join(GENRES[g] for g in cond.genres)
-        reasons.append(f"希望ジャンル（{wanted}）に合う行き先が条件内になかったため、ジャンルを問わずに選んだ")
-    elif cond.genres:
+        best = max(d["genres"].get(g, 0) for g in cond.genres)
         hits = [GENRES[g] for g in cond.genres if d["genres"].get(g, 0) >= 2]
         if hits:
             reasons.append(f"希望ジャンルのうち「{'・'.join(hits)}」が強い")
+        elif best == 1:
+            why = ("強く合う行き先が条件内になかったため" if level == 1
+                   else "サプライズ度が高く、ジャンルを外れた候補も抽選に入るため")
+            reasons.append(f"希望ジャンル（{wanted}）は少しだけ楽しめる程度（{why}）")
         else:
-            reasons.append("希望ジャンルは少しだけ楽しめる程度（サプライズ度が高いため）")
+            why = ("合う行き先が条件内になかったため" if level == 0
+                   else "サプライズ度が高く、ジャンルを外れた候補も抽選に入るため")
+            reasons.append(f"希望ジャンル（{wanted}）とは別の楽しみ方の場所（{why}）")
     else:
         top = sorted(d["genres"].items(), key=lambda kv: -kv[1])[:2]
         reasons.append(f"ジャンルおまかせ → 「{'・'.join(GENRES[g] for g, _ in top)}」が持ち味の場所")
@@ -479,10 +590,15 @@ def explain(cand: Candidate, cond: Conditions, total: int | None = None, genre_r
     else:
         direction = "ニッチ寄り" if diff > 0 else "王道寄り"
         degree = "少し" if abs(diff) == 1 else "かなり"
-        if cond.surprise >= 3:
-            reasons.append(f"好みより{degree}{direction}の「{label}」（サプライズ枠）")
+        niches = info.get("niches")
+        closer_existed = niches is not None and any(abs(n - cond.niche) < abs(diff) for n in niches)
+        if niches is not None and not closer_existed:
+            why = "条件を満たす行き先の中に、好みにもっと近いものがなかったため"
+        elif cond.surprise >= 3:
+            why = "サプライズ枠"
         else:
-            reasons.append(f"好みより{degree}{direction}の「{label}」（ほかの条件を満たす中で近いものを選んだ）")
+            why = "スコアの重み付き抽選で選ばれた。好みにより近い候補も「他の候補」から選べる"
+        reasons.append(f"好みより{degree}{direction}の「{label}」（{why}）")
 
     if cond.trip_months() & set(d["best_months"]):
         reasons.append("旅行する月がベストシーズン")
@@ -491,6 +607,8 @@ def explain(cand: Candidate, cond: Conditions, total: int | None = None, genre_r
         reasons.append(f"{RELATIONS[cond.relation]}との相性がとても良い")
     elif fit <= 1:
         reasons.append(f"{RELATIONS[cond.relation]}向けの定番ではない（意外性枠）")
+    if info.get("premium_missing"):
+        reasons.append("贅沢な宿で予算に収まる行き先がなかったため、宿の段階は予算に合わせた")
 
     total = cand.est.total if total is None else total
     if cond.budget_total and total > cond.budget_total:

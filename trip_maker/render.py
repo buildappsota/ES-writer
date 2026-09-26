@@ -9,12 +9,15 @@ from .constants import (
     DETAIL_LEVELS,
     GENRES,
     HUBS,
+    LODGING_PREFS,
+    SCOPES,
+    TRANSPORT_PREFS,
     LODGING_TIERS,
     NICHE_LABELS,
     PACES,
     RELATIONS,
 )
-from .engine import SCORE_LABELS
+from .engine import PEAK_FLIGHT_RATE, SCORE_LABELS, is_peak
 from .planner import Day, Plan, fmt_time, lodging_label, maps_url, reverse_route, spot_query
 
 WEEKDAYS = "月火水木金土日"
@@ -44,9 +47,10 @@ def party_text(plan: Plan) -> str:
 
 def span_text(plan: Plan) -> str:
     c = plan.cond
+    later = "・帰着は翌日" if plan.returns_next_day else ""
     if c.nights == 0:
-        return f"{fmt_date(c.start_date)} 日帰り"
-    return f"{fmt_date(c.start_date)}〜{fmt_date(c.end_date)}（{c.nights}泊{c.days}日）"
+        return f"{fmt_date(c.start_date)} 日帰り" + (f"（{later[1:]}）" if later else "")
+    return f"{fmt_date(c.start_date)}〜{fmt_date(c.end_date)}（{c.nights}泊{c.days}日{later}）"
 
 
 def dest_names(plan: Plan) -> str:
@@ -90,13 +94,19 @@ def budget_summary_md(plan: Plan) -> str:
     return "\n\n".join([body] + [f"※ {n}" for n in notes])
 
 
+def _peak_note(option: dict, day) -> str:
+    if option["mode"] == "flight" and is_peak(day):
+        return f"（繁忙期のため予算は約{PEAK_FLIGHT_RATE:g}倍で計算）"
+    return ""
+
+
 def access_md(plan: Plan) -> str:
     c = plan.cond
     out, back = plan.access_out, plan.access_back
     lines = [
         f"- **行き**（{HUBS[c.hub]}発）：{out['route']}　"
         f"{ACCESS_MODES[out['mode']]}・片道 約{out['hours']:.1f}時間・大人1人 約{yen(out['cost'])}"
-        + ("・夜行" if out.get("overnight") else ""),
+        + ("・夜行" if out.get("overnight") else "") + _peak_note(out, c.start_date),
     ]
     if plan.transfer:
         t = plan.transfer
@@ -104,7 +114,7 @@ def access_md(plan: Plan) -> str:
     lines.append(
         f"- **帰り**：{reverse_route(back['route'])}　"
         f"{ACCESS_MODES[back['mode']]}・片道 約{back['hours']:.1f}時間・大人1人 約{yen(back['cost'])}"
-        + ("・夜行" if back.get("overnight") else ""))
+        + ("・夜行" if back.get("overnight") else "") + _peak_note(back, c.end_date))
     for st in plan.stops:
         lt = st.dest["local_transport"]
         car = "（レンタカー前提）" if lt["car"] else ""
@@ -288,17 +298,26 @@ def data_basis_md(plan: Plan) -> str:
     return "\n".join(lines)
 
 
+SURPRISE_TEXT = {1: "条件ぴったり", 2: "ほぼ条件どおり", 3: "ほどよく意外", 4: "かなり意外", 5: "完全ランダム"}
+MULTI_STOP_TEXT = {"auto": "おまかせ", "off": "1 か所でじっくり", "on": "できれば 2 か所めぐる"}
+
+
 def conditions_md(plan: Plan) -> str:
+    """旅コードで同じ旅を再現するのに必要な条件をすべて書く。"""
     c = plan.cond
     genres = "・".join(GENRES[g] for g in c.genres) or "おまかせ"
+    excluded = "、".join(c.exclude_ids) or "なし"
     return "\n".join([
         f"- 出発：{HUBS[c.hub]}",
-        f"- 日程：{span_text(plan)}",
+        f"- 出発日：{c.start_date.year}年{c.start_date.month}月{c.start_date.day}日　{span_text(plan)}",
         f"- 人数・関係性：{party_text(plan)}",
         f"- 予算：合計 {yen(c.budget_total)}",
         f"- ジャンル：{genres}",
-        f"- 王道〜ニッチ：{NICHE_LABELS[c.niche]}",
-        f"- ペース：{PACES[c.pace]}",
+        f"- 王道〜ニッチ：{NICHE_LABELS[c.niche]}　／　サプライズ度：{SURPRISE_TEXT[c.surprise]}",
+        f"- 行き先の範囲：{SCOPES[c.scope]}　／　移動手段：{TRANSPORT_PREFS[c.transport_pref]}",
+        f"- 宿：{LODGING_PREFS[c.lodging_pref]}　／　ペース：{PACES[c.pace]}　／　周遊：{MULTI_STOP_TEXT[c.multi_stop]}",
+        f"- 除外した行き先：{excluded}",
+        f"- 旅コード：{plan.trip_code}",
     ])
 
 

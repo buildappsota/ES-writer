@@ -7,7 +7,6 @@ render.py が見せる範囲を変える。こうしておくと決め込み度�
 
 from __future__ import annotations
 
-import math
 import random
 import re
 from dataclasses import dataclass, field
@@ -16,18 +15,31 @@ from datetime import date, timedelta
 from . import engine
 from .constants import GENRES, LODGING_MEALS_LABELS, LODGING_TIERS, NICHE_LABELS
 from .engine import Candidate, Conditions
+from .rules import (
+    DAY_END,
+    DAY_START,
+    DINNER_BEFORE_RETURN,
+    ON_BOARD_DINNER_FROM,
+    back_times,
+    earliest_begin,
+    in_scope,
+    is_drink,
+    link_mode,
+    out_times,
+    round15,
+    spot_intervals,
+)
+
+__all__ = ["is_drink"]  # 互換のため（テストや他モジュールが planner.is_drink を使う）
 
 # ── 1 日の時間の使い方（分） ────────────────────────────────────────
-DAY_START = 9 * 60
-DAY_END = 18 * 60                 # 日中しか成立しないスポットはここまでに終える
-EVENING_START = 16 * 60           # 夕方しか成立しないスポットはここ以降に始める
-MORNING_LATEST_START = 11 * 60    # 朝しか成立しないスポットはここまでに始める
 DINNER_START = 18 * 60 + 30
 DINNER_MIN = 90
+DINNER_LATEST = 21 * 60          # これより遅い到着なら、夕食は移動中・到着後に軽く
 NIGHT_START = 20 * 60 + 15
 NIGHT_LATEST_END = 22 * 60 + 30
-HOME_BY = 21 * 60
 BREAKFAST_START = 7 * 60 + 30
+EARLIEST_DEPARTURE = 5 * 60 + 30  # 早朝出発のスポット（登山など）でもこれより早くは出ない
 LUNCH_EARLIEST = 11 * 60 + 30
 LUNCH_LATEST = 14 * 60            # これより後には昼食を始めない
 LUNCH_MIN = 60
@@ -36,6 +48,7 @@ HOTEL_CHECKIN = 18 * 60
 OVERNIGHT_EARLIEST_START = 8 * 60 + 30
 MOVE_SAME_AREA = 20
 MOVE_OTHER_AREA = 45
+HUB_CITY_HOURS = 1.0              # 出発地からこれ以内で着く行き先は、周遊の 2 か所目にしない
 
 PACE_USE = {"relaxed": 0.65, "normal": 0.8, "packed": 1.0}
 PACE_MAX_SPOTS = {"relaxed": 2, "normal": 4, "packed": 6}   # 観光に丸 1 日（7 時間）使える日の上限
@@ -77,6 +90,9 @@ MISSIONS_BY_GENRE = {
 # 前泊していないと難しいミッション（到着日・日帰りには出さない）
 MORNING_MISSIONS = {"朝いちばんに外へ出て、観光客がいない景色を見る", "市場で朝ごはんを食べる",
                     "喫茶店のモーニングを頼む", "日の出か日の入りを見る"}
+# 夕方〜夜に現地にいないとできないミッション（その夜も現地に泊まる日だけに出す）
+EVENING_MISSIONS = {"星空を 10 分見上げる", "夕日の時間に海辺にいる", "日の出か日の入りを見る",
+                    "地酒を 1 杯、店の人のおすすめで頼む"}
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -128,6 +144,7 @@ class Caps:
     spot: int | None = None
     meal: int | None = None
     drink: bool = True
+    snack: bool = True
     label: str = ""
 
 
@@ -135,7 +152,10 @@ CAP_STEPS = (
     Caps(),
     Caps(spot=5000, meal=5000, label="高額な体験・料理を控えめに"),
     Caps(spot=2500, meal=3000, drink=False, label="有料スポットと食事を節約寄りに"),
-    Caps(spot=1000, meal=1800, drink=False, label="有料スポットと食事を最小限に"),
+    Caps(spot=1000, meal=engine.FLOOR_MEAL_CAP, drink=False, label="有料スポットと食事を最小限に"),
+    # 見積もりの下限（engine.estimate の floor）と同じ条件
+    Caps(spot=engine.FLOOR_SPOT_CAP, meal=engine.FLOOR_MEAL_CAP, drink=False, snack=False,
+         label="有料スポットとおやつを外し、食事を最小限に"),
 )
 
 
@@ -165,6 +185,7 @@ class Plan:
     forced: bool = False
     fallback_note: str | None = None
     search_info: dict = field(default_factory=dict)
+    returns_next_day: bool = False   # 帰着が最終日の翌日になる（時差のある長距離便など）
 
     @property
     def dest(self) -> dict:
@@ -200,10 +221,6 @@ def fmt_time(minutes: int) -> str:
     day, rest = divmod(minutes, 24 * 60)
     text = f"{rest // 60}:{rest % 60:02d}"
     return f"翌{text}" if day else text
-
-
-def _round15(minutes: float) -> int:
-    return int(math.ceil(minutes / 15) * 15)
 
 
 def reverse_route(route: str) -> str:
@@ -245,20 +262,12 @@ def is_night_spot(s: dict) -> bool:
     return "night" in s["when"] and not ({"morning", "day"} & set(s["when"]))
 
 
-def is_evening_only(s: dict) -> bool:
-    return not ({"morning", "day"} & set(s["when"])) and "evening" in s["when"]
-
-
-def is_morning_only(s: dict) -> bool:
-    return set(s["when"]) == {"morning"}
-
-
-def is_daytime_only(s: dict) -> bool:
-    return not ({"evening", "night"} & set(s["when"]))
-
-
 def _time_key(s: dict) -> int:
     return min(TIME_ORDER[w] for w in s["when"])
+
+
+def _dur(s: dict) -> int:
+    return int(s["hours"] * 60)
 
 
 def is_open(s: dict, day: date) -> bool:
@@ -276,15 +285,17 @@ def lodging_label(lo: dict) -> str:
 
 
 def _fits_window(s: dict, start: int, end: int) -> bool:
-    """その日の観光枠に、時間帯の条件を満たして収まりうるか。"""
-    dur = int(s["hours"] * 60)
-    if is_morning_only(s) and start + MOVE_SAME_AREA > MORNING_LATEST_START:
-        return False
-    if is_evening_only(s):
-        return max(start, EVENING_START) + dur <= end
-    if is_daytime_only(s):
-        return start + MOVE_SAME_AREA + dur <= min(end, DAY_END)
-    return start + MOVE_SAME_AREA + dur <= end
+    """その日の観光枠に、時間帯（when）の条件を満たして収まりうるか。"""
+    return earliest_begin(s, start + MOVE_SAME_AREA, _dur(s), end) is not None
+
+
+def _order_spots(chosen: list[dict], primary: str | None) -> list[dict]:
+    """エリアごとにまとめて回る（エリアの行き来は 1 回まで）。朝のスポットがあるエリアを先に。"""
+    groups: dict[str, list[dict]] = {}
+    for s in chosen:
+        groups.setdefault(s["area"], []).append(s)
+    order = sorted(groups, key=lambda a: (min(_time_key(s) for s in groups[a]), a != primary))
+    return [s for a in order for s in sorted(groups[a], key=_time_key)]
 
 
 def choose_day_spots(ranked: list[tuple[float, dict]], used: set[str], start: int, end: int,
@@ -303,7 +314,7 @@ def choose_day_spots(ranked: list[tuple[float, dict]], used: set[str], start: in
     for _, s in pool:
         if len(chosen) >= max_spots:
             break
-        dur = s["hours"] * 60
+        dur = _dur(s)
         if primary is None or s["area"] == primary or (other_area_used and s["area"] in {c["area"] for c in chosen}):
             move = MOVE_SAME_AREA
         elif other_area_used:
@@ -319,9 +330,17 @@ def choose_day_spots(ranked: list[tuple[float, dict]], used: set[str], start: in
         primary = primary or s["area"]
         chosen.append(s)
         spent += dur + move
-    area_rank = {primary: 0}
-    # 時間帯（朝→日中→夕方）を優先し、同じ時間帯の中では主エリアを先に回る
-    return sorted(chosen, key=lambda s: (_time_key(s), area_rank.get(s["area"], 1)))
+    return _order_spots(chosen, primary)
+
+
+def _full_day_begin(s: dict, end: int) -> int | None:
+    """丸一日かかるスポットの開始時刻。9 時開始が無理なら早朝（最早 5:30）に繰り上げる。"""
+    dur = _dur(s)
+    for a, b in spot_intervals(s):
+        lim = min(b, end)
+        if lim - max(a, EARLIEST_DEPARTURE) >= dur:
+            return max(a, EARLIEST_DEPARTURE, min(DAY_START + MOVE_SAME_AREA, lim - dur))
+    return None
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -342,42 +361,12 @@ class _DaySkeleton:
     back_depart: int | None = None
 
 
-def _out_times(opt: dict, tz: float = 0) -> tuple[int, int]:
-    """往路の出発時刻（日本時間）と到着時刻（現地時間）。夜行の場合の到着は翌日の時刻。
-
-    tz は現地時間と日本時間の差（時間）。日付変更線をまたぐ行き先（ハワイなど）は
-    朝に出ると現地の前日に着いてしまうため、夜に出て同じ日付の昼に着く便を想定する。
-    """
-    hours, shift = opt["hours"], int(tz * 60)
-    if opt.get("overnight"):
-        depart = 11 * 60 if hours >= 16 else 22 * 60
-        arrive = max(6 * 60, min(16 * 60, depart + int(hours * 60) + shift - 24 * 60))
-        return depart, arrive
-    depart = 8 * 60 if hours <= 3 else 7 * 60
-    if depart + hours * 60 + shift < 6 * 60:
-        depart = 21 * 60
-    return depart, _round15(depart + hours * 60 + shift)
-
-
-def _back_times(opt: dict, tz: float = 0) -> tuple[int, int]:
-    """復路の出発時刻（現地時間）と帰着時刻（日本時間。24 時超えは翌日）。"""
-    hours, shift = opt["hours"], int(tz * 60)
-    if opt.get("overnight"):
-        depart = 14 * 60 if hours >= 16 else 21 * 60
-    else:
-        latest = HOME_BY + shift - hours * 60
-        if latest < 9 * 60 and tz <= -5:   # 日付変更線をまたいで翌日に帰着する便
-            latest += 24 * 60
-        depart = min(21 * 60, max(9 * 60, int(latest // 15 * 15)))
-    return depart, depart - shift + int(hours * 60)
-
-
 def build_skeleton(cond: Conditions, out: dict, back: dict, night_stops: list[int | None],
                    tz_out: float = 0, tz_back: float = 0) -> list[_DaySkeleton]:
     n = cond.nights
     days: list[_DaySkeleton] = []
-    out_dep, out_arr = _out_times(out, tz_out)
-    back_dep, back_arr = _back_times(back, tz_back)
+    out_dep, out_arr = out_times(out, tz_out)
+    back_dep, back_arr = back_times(back, tz_back)
     arrive_start = out_arr + 15
     if out.get("overnight"):
         arrive_start = max(arrive_start, OVERNIGHT_EARLIEST_START)
@@ -421,14 +410,13 @@ def build_skeleton(cond: Conditions, out: dict, back: dict, night_stops: list[in
 # ════════════════════════════════════════════════════════════════════
 # 食事
 # ════════════════════════════════════════════════════════════════════
-DRINK_RE = re.compile(r"地酒|日本酒|焼酎|ビール|ワイン|ウイスキー|泡盛|般若湯|マッコリ|樽酒|どぶろく|ハイボール|シードル")
+ON_THE_WAY = {"rail": "車内で駅弁", "bus": "サービスエリア・駅で", "flight": "空港・機内で",
+              "ferry": "船内・港で", "car": "道の駅・サービスエリアで"}
 
 
-def is_drink(food: dict) -> bool:
-    """酒類かどうか（データの "drink" 指定があればそれを優先）。酒類は食事の主役にせず夕食に添える。"""
-    if "drink" in food:
-        return bool(food["drink"])
-    return bool(DRINK_RE.search(food["name"])) and "甘酒" not in food["name"]
+def on_the_way(option: dict) -> str:
+    """移動中の食事のとり方（交通手段に合わせた言い方）。"""
+    return ON_THE_WAY.get(option["mode"], "移動中に")
 
 
 def _foods_by_slot(dest: dict) -> dict[str, list[dict]]:
@@ -438,15 +426,16 @@ def _foods_by_slot(dest: dict) -> dict[str, list[dict]]:
     return pools
 
 
-def _generic_meal_cost(dest: dict, tier: str, slot: str, cond: Conditions) -> int:
-    return int(round(engine.meals_per_day_cost(dest, tier)[slot] * engine.units(cond.adults, cond.kids, "food"), -1))
+def _generic_meal_cost(dest: dict, tier: str, slot: str, cond: Conditions, caps: Caps = CAP_STEPS[0]) -> int:
+    per_person = engine.generic_meal_cost(dest, tier, slot, caps.meal)
+    return int(round(per_person * engine.units(cond.adults, cond.kids, "food"), -1))
 
 
 def _add_drink(block: Block, foods_left: dict[str, list[dict]], cond: Conditions, rng: random.Random,
                caps: Caps) -> None:
     """夕食に地酒などを 1 杯添える（お酒ジャンル選択時は必ず、それ以外は半々）。大人の人数ぶん加算。"""
     drinks = foods_left.get("drink") or []
-    if not caps.drink or not drinks or ("drink" not in cond.genres and rng.random() < 0.5):
+    if not caps.drink or not drinks or ("drink" not in cond.genres and rng.random() >= engine.DRINK_CHANCE):
         return
     drink = drinks.pop(rng.randrange(len(drinks)))
     block.title += f"（＋{drink['name']}）"
@@ -471,25 +460,49 @@ def _meal_block(start: int, minutes: int, slot: str, dest: dict, tier: str, cond
         cost = int(round(price * engine.units(cond.adults, cond.kids, "food"), -1))
         return Block(start, start + minutes, "meal", f"{label}：{food['name']}", food.get("note", ""),
                      cost, maps_query=f"{food['name']} {dest['name'].split('・')[0]}")
-    generic = {"breakfast": "カフェやパン屋で朝ごはん", "lunch": "地元の食堂でランチ",
-               "dinner": "地元の居酒屋・食堂で夕食"}[slot]
-    return Block(start, start + minutes, "meal", f"{label}：{generic}", "", _generic_meal_cost(dest, tier, slot, cond))
+    if caps.meal is not None:
+        generic = {"breakfast": "コンビニ・パン屋で手軽に", "lunch": "地元の食堂で手ごろに",
+                   "dinner": "地元の食堂・居酒屋で手ごろに"}[slot]
+    else:
+        generic = {"breakfast": "カフェやパン屋で朝ごはん", "lunch": "地元の食堂でランチ",
+                   "dinner": "地元の居酒屋・食堂で夕食"}[slot]
+    return Block(start, start + minutes, "meal", f"{label}：{generic}", "",
+                 _generic_meal_cost(dest, tier, slot, cond, caps))
 
 
-def _quick_meal(at: int, title: str, dest: dict, tier: str, cond: Conditions, minutes: int = 0) -> Block:
+def _quick_meal(at: int, title: str, dest: dict, tier: str, cond: Conditions, minutes: int = 0,
+                caps: Caps = CAP_STEPS[0]) -> Block:
     """移動中・合間にとる軽い食事（昼食相当の額）。"""
-    return Block(at, at + minutes, "meal", title, "", _generic_meal_cost(dest, tier, "lunch", cond))
+    return Block(at, at + minutes, "meal", title, "", _generic_meal_cost(dest, tier, "lunch", cond, caps))
 
 
 def _spot_block(start: int, s: dict, dest: dict, cond: Conditions, stop: int) -> Block:
-    dur = int(s["hours"] * 60)
     cost = int(round(s["cost"] * engine.units(cond.adults, cond.kids, "spot"), -1))
-    return Block(start, start + dur, "spot", s["name"], s["note"], cost, s["area"], s, spot_query(s, dest), stop)
+    return Block(start, start + _dur(s), "spot", s["name"], s["note"], cost, s["area"], s, spot_query(s, dest), stop)
 
 
 # ════════════════════════════════════════════════════════════════════
 # 観光枠のレイアウト
 # ════════════════════════════════════════════════════════════════════
+def _fill_rest(day: Day, t: int, end: int, dest: dict, cond: Conditions, foods_left, rng, caps: Caps) -> None:
+    """観光のあとの空き時間に、おやつと自由時間を入れる。"""
+    if end - t < 60:
+        return
+    snack = [f for f in foods_left.get("snack") or [] if caps.snack and (caps.meal is None or f["price"] <= caps.meal)]
+    if snack:
+        food = snack[rng.randrange(len(snack))]
+        foods_left["snack"].remove(food)
+        cost = int(round(food["price"] * engine.units(cond.adults, cond.kids, "food"), -1))
+        day.blocks.append(Block(t, t + 30, "snack", f"おやつ：{food['name']}", food.get("note", ""),
+                                cost, maps_query=f"{food['name']} {dest['name'].split('・')[0]}"))
+        t += 30
+    if end - t >= 60:
+        if day.kind in ("departure", "daytrip"):
+            day.blocks.append(Block(t, end, "free", "自由時間・おみやげ探し", "駅や空港へ向かう前に、名物やおみやげを買う"))
+        else:
+            day.blocks.append(Block(t, end, "free", "自由時間", "気になった店に戻る・カフェで休む・宿で早めにくつろぐ"))
+
+
 def _layout_sightseeing(day: Day, spots: list[dict], start: int, end: int, dest: dict, stop: int, tier: str,
                         cond: Conditions, foods_left, rng, caps: Caps, lunch_done: bool) -> list[dict]:
     """観光枠の中にスポットと昼食を並べ、実際に置けたスポットを返す。"""
@@ -504,19 +517,14 @@ def _layout_sightseeing(day: Day, spots: list[dict], start: int, end: int, dest:
 
     for s in spots:
         move = MOVE_SAME_AREA if prev_area in (None, s["area"]) else MOVE_OTHER_AREA
-        dur = int(s["hours"] * 60)
+        dur = _dur(s)
         # 昼食：11:30 を過ぎた、またはこのスポットが 14 時をまたぐなら先に食べる
         if lunch_needed and 11 * 60 <= t <= LUNCH_LATEST and t + LUNCH_MIN <= end \
                 and (t + move >= LUNCH_EARLIEST or t + move + dur > LUNCH_LATEST):
             t = add_lunch(t)
             lunch_needed = False
-        begin = t + move
-        if is_evening_only(s):
-            begin = max(begin, EVENING_START)
-        latest_end = min(end, DAY_END) if is_daytime_only(s) else end
-        if is_morning_only(s) and begin > MORNING_LATEST_START:
-            continue
-        if begin + dur > latest_end:
+        begin = earliest_begin(s, t + move, dur, end)
+        if begin is None:
             continue
         if begin - move - t >= 30:
             day.blocks.append(Block(t, begin - move, "free", "自由時間",
@@ -525,7 +533,8 @@ def _layout_sightseeing(day: Day, spots: list[dict], start: int, end: int, dest:
                                 "移動" if prev_area in (None, s["area"]) else f"移動（{s['area']}へ）"))
         if lunch_needed and begin < 12 * 60 and begin + dur > LUNCH_LATEST:
             # 長いアクティビティの途中で昼食をとる（時間割上はスポットの中に含める）
-            day.blocks.append(_quick_meal(12 * 60 + 30, f"昼食：{s['name']}の途中で軽食・弁当", dest, tier, cond))
+            day.blocks.append(_quick_meal(12 * 60 + 30, f"昼食：{s['name']}の途中で軽食・弁当", dest, tier, cond,
+                                          caps=caps))
             lunch_needed = False
         day.blocks.append(_spot_block(begin, s, dest, cond, stop))
         placed.append(s)
@@ -539,24 +548,32 @@ def _layout_sightseeing(day: Day, spots: list[dict], start: int, end: int, dest:
                 day.blocks.append(Block(t, at, "free", "自由時間・散策", "宿の周りを歩く・カフェで休む・おみやげを見る"))
             t = add_lunch(at)
         else:
-            day.blocks.append(_quick_meal(min(max(t, 12 * 60), LUNCH_LATEST), "昼食：合間に軽食", dest, tier, cond))
-    if end - t >= 60:
-        snack = [f for f in foods_left.get("snack") or [] if caps.meal is None or f["price"] <= caps.meal]
-        if snack:
-            food = snack[rng.randrange(len(snack))]
-            foods_left["snack"].remove(food)
-            cost = int(round(food["price"] * engine.units(cond.adults, cond.kids, "food"), -1))
-            day.blocks.append(Block(t, t + 30, "snack", f"おやつ：{food['name']}", food.get("note", ""),
-                                    cost, maps_query=f"{food['name']} {dest['name'].split('・')[0]}"))
-            t += 30
-        if end - t >= 60:
-            if day.kind in ("departure", "daytrip"):
-                day.blocks.append(Block(t, end, "free", "自由時間・おみやげ探し",
-                                        "駅や空港へ向かう前に、名物やおみやげを買う"))
-            else:
-                day.blocks.append(Block(t, end, "free", "自由時間",
-                                        "気になった店に戻る・カフェで休む・宿で早めにくつろぐ"))
+            day.blocks.append(_quick_meal(min(max(t, 12 * 60), LUNCH_LATEST), "昼食：合間に軽食", dest, tier, cond,
+                                          caps=caps))
+    _fill_rest(day, t, end, dest, cond, foods_left, rng, caps)
     return placed
+
+
+def _layout_full_day_spot(day: Day, s: dict, begin: int, end: int, dest: dict, stop: int, tier: str,
+                          cond: Conditions, foods_left, rng, caps: Caps) -> None:
+    """丸一日かかるスポット（登山・日帰りツアーなど）を 1 つだけ置く日。"""
+    dur = _dur(s)
+    if begin < BREAKFAST_START + 45 + MOVE_SAME_AREA:
+        # 早朝出発：宿の朝食の代わりに弁当（宿の食事に朝食が含まれていれば追加料金なし）
+        for b in [b for b in day.blocks if b.title.startswith("朝食")]:
+            day.blocks.remove(b)
+            b.start, b.end = begin - MOVE_SAME_AREA - 30, begin - MOVE_SAME_AREA
+            b.title = "朝食：早朝出発のため弁当・軽食" if b.cost else "朝食：宿の朝食を弁当に（前日までに相談）"
+            day.blocks.append(b)
+    day.blocks.append(Block(begin - MOVE_SAME_AREA, begin, "move", "移動"))
+    day.blocks.append(_spot_block(begin, s, dest, cond, stop))
+    if begin < 12 * 60 + 30 < begin + dur:
+        day.blocks.append(_quick_meal(12 * 60 + 30, f"昼食：{s['name']}の途中で軽食・弁当", dest, tier, cond, caps=caps))
+    elif begin + dur <= LUNCH_LATEST and begin + dur + LUNCH_MIN <= end:
+        day.blocks.append(_meal_block(max(begin + dur, 12 * 60), LUNCH_MIN, "lunch", dest, tier, cond, foods_left,
+                                      rng, caps))
+    last = max(b.end for b in day.blocks if b.kind != "travel")
+    _fill_rest(day, last, end, dest, cond, foods_left, rng, caps)
 
 
 def _theme(day: Day, dest: dict) -> str:
@@ -576,15 +593,20 @@ def _theme(day: Day, dest: dict) -> str:
 
 
 def _rain_plans(days: list[Day], stops_d: list[dict], cond: Conditions, months: set[int]) -> None:
-    """雨の日の代案。旅程に入っていない屋内スポットだけを、同じエリア優先で最大 2 件。"""
+    """雨の日の代案。旅程に入っていない屋内スポットのうち、外のスポットの時間帯に収まるものを最大 2 件。"""
     visited = {b.spot["name"] for d in days for b in d.blocks if b.spot}
     for day in days:
-        spots = [b.spot for b in day.blocks if b.kind == "spot" and not is_night_spot(b.spot)]
-        if not spots or all(s["indoor"] for s in spots) or day.stop_index is None:
+        outdoor = [b for b in day.blocks if b.kind == "spot" and not b.spot["indoor"] and not is_night_spot(b.spot)]
+        if not outdoor or day.stop_index is None:
             continue
-        areas = {s["area"] for s in spots}
+        span_start = min(b.start for b in outdoor)
+        span_end = max(b.end for b in outdoor)
+        outdoor_minutes = sum(b.end - b.start for b in outdoor)
+        areas = {b.area for b in outdoor}
         candidates = [s for s in usable_spots(stops_d[day.stop_index], cond, months)
-                      if s["indoor"] and not is_night_spot(s) and s["name"] not in visited and is_open(s, day.date)]
+                      if s["indoor"] and not is_night_spot(s) and s["name"] not in visited and is_open(s, day.date)
+                      and _dur(s) <= outdoor_minutes + 60
+                      and earliest_begin(s, span_start, _dur(s), span_end + 60) is not None]
         candidates.sort(key=lambda s: s["area"] not in areas)
         day.rain_plan = candidates[:2]
 
@@ -607,12 +629,17 @@ def _choose_second_stop(cand: Candidate, destinations: list[dict], cond: Conditi
     options = []
     for link in dest["nearby"]:
         d2 = by_id.get(link["id"])
-        if not d2 or d2["id"] in cond.exclude_ids:
+        if not d2 or d2["id"] in cond.exclude_ids or not in_scope(d2, cond.scope):
             continue
         if months & set(d2["avoid_months"]):
             continue
-        if engine.choose_access(d2["access"].get(cond.hub, []), cond) is None:
+        if cond.transport_pref == "no_flight" and link_mode(link) == "flight":
             continue
+        hub_options = d2["access"].get(cond.hub, [])
+        if engine.choose_access(hub_options, cond) is None:
+            continue
+        if min(o["hours"] for o in hub_options) <= HUB_CITY_HOURS:
+            continue   # 出発地そのもの（またはすぐ近く）で泊まる周遊にはしない
         w = 0.2 + engine.genre_score(d2["genres"], cond.genres) + engine.niche_score(d2["niche"], cond.niche)
         options.append((w, d2, link))
     if not options:
@@ -622,7 +649,7 @@ def _choose_second_stop(cand: Candidate, destinations: list[dict], cond: Conditi
 
 
 def _assign_nights(cond: Conditions, out: dict, back: dict, stops: list[dict]) -> list[int | None] | None:
-    """各夜にどの行き先で泊まるか（None は夜行移動中）。"""
+    """各夜にどの行き先で泊まるか（None は夜行移動中）。周遊では、両方のちょうどよい泊数の比で分ける。"""
     n = cond.nights
     transit = set()
     if out.get("overnight") and n:
@@ -636,27 +663,28 @@ def _assign_nights(cond: Conditions, out: dict, back: dict, stops: list[dict]) -
             result[k] = 0
         return result
     d1, d2 = stops
-    need2 = max(1, d2["min_nights"])
-    n1 = min(max(1, d1["ideal_nights"][1]), len(lodging_nights) - need2)
-    if n1 < max(1, d1["min_nights"]):
+    total = len(lodging_nights)
+    need1, need2 = max(1, d1["min_nights"]), max(1, d2["min_nights"])
+    if need1 + need2 > total:
         return None
+    hi1, hi2 = max(1, d1["ideal_nights"][1]), max(1, d2["ideal_nights"][1])
+    n1 = min(max(round(total * hi1 / (hi1 + hi2)), need1), total - need2)
     for i, k in enumerate(lodging_nights):
         result[k] = 0 if i < n1 else 1
     return result
 
 
+def _transfer_cost(link: dict, cond: Conditions, day: date) -> int:
+    mode = link_mode(link)
+    total = link["cost"] * engine.units(cond.adults, cond.kids, mode if mode in engine.KID_RATE else "rail")
+    if mode == "flight" and engine.is_peak(day):
+        total *= engine.PEAK_FLIGHT_RATE
+    return int(round(total, -1))
+
+
 # ════════════════════════════════════════════════════════════════════
 # 旅程の組み立て
 # ════════════════════════════════════════════════════════════════════
-ON_THE_WAY = {"rail": "車内で駅弁", "bus": "サービスエリア・駅で", "flight": "空港・機内で",
-              "ferry": "船内・港で", "car": "道の駅・サービスエリアで"}
-
-
-def on_the_way(option: dict) -> str:
-    """移動中の食事のとり方（交通手段に合わせた言い方）。"""
-    return ON_THE_WAY.get(option["mode"], "移動中に")
-
-
 def _travel_lunch(dep: int, arr: int) -> int | None:
     """移動が昼どき（12:00〜13:00）にかかるなら、移動中の昼食の時刻を返す。"""
     if dep <= 12 * 60 + 30 and arr >= 12 * 60 + 30:
@@ -664,9 +692,18 @@ def _travel_lunch(dep: int, arr: int) -> int | None:
     return None
 
 
+def _onboard_meals(day: Day, dep: int, arr: int, option: dict, dest: dict, tier: str, cond: Conditions,
+                   caps: Caps) -> None:
+    """長い船旅・夜行の中でとる食事（その日の時刻の範囲にかかるものだけ）。"""
+    where = on_the_way(option)
+    for at, label in ((7 * 60 + 30, "朝食"), (12 * 60 + 30, "昼食"), (19 * 60, "夕食")):
+        if dep <= at <= arr:
+            day.blocks.append(_quick_meal(at, f"{label}：{where}", dest, tier, cond, caps=caps))
+
+
 def build_plan(cand: Candidate, cond: Conditions, destinations: list[dict], dest_seed: int,
                plan_seed: int, tier_override: str | None = None, allow_multi: bool = True,
-               caps: Caps = CAP_STEPS[0]) -> Plan:
+               caps: Caps = CAP_STEPS[0], legs: tuple[dict, dict] | None = None) -> Plan:
     rng = random.Random(f"plan-{plan_seed}")
     dest = cand.dest
     est = cand.est if tier_override is None else engine.estimate(dest, cond, tier_override)
@@ -678,7 +715,7 @@ def build_plan(cand: Candidate, cond: Conditions, destinations: list[dict], dest
     transfer = None
     second = (_choose_second_stop(cand, destinations, cond, random.Random(f"stop2-{dest_seed}"))
               if allow_multi else None)
-    out, back = est.access_out, est.access_back
+    out, back = legs or (est.access_out, est.access_back)
     night_stops = None
     if second:
         d2, link = second
@@ -699,6 +736,7 @@ def build_plan(cand: Candidate, cond: Conditions, destinations: list[dict], dest
     used: set[str] = set()
     out_cost = engine.access_cost(out, cond, cond.start_date)
     back_cost = engine.access_cost(back, cond, cond.end_date)
+    returns_next_day = False
 
     days: list[Day] = []
     for k, sk in enumerate(skeleton):
@@ -709,19 +747,24 @@ def build_plan(cand: Candidate, cond: Conditions, destinations: list[dict], dest
         if sk.kind == "transit":
             day.blocks.append(Block(sk.transit_depart, sk.arrive_dest + 24 * 60, "travel",
                                     f"出発：{out['route']}", "夜行（車中・船中泊）", out_cost))
+            _onboard_meals(day, sk.transit_depart, 24 * 60, out, dest, tier, cond, caps)
             day.theme = _theme(day, d)
             days.append(day)
             continue
         if sk.kind == "home":
             day.blocks.append(Block(max(0, sk.arrive_home - 30), sk.arrive_home, "travel", "帰着",
                                     reverse_route(back["route"])))
+            if back["hours"] >= 16:
+                _onboard_meals(day, 0, sk.arrive_home - 30, back, stops_d[-1], tier, cond, caps)
+            day.blocks.sort(key=lambda b: (b.start, b.end))
             day.theme = _theme(day, d)
             days.append(day)
             continue
 
         start, end = sk.start, sk.end
         lunch_done = False
-        ready_at = DAY_START   # 宿にチェックインできる状態になる時刻
+        ready_at = DAY_START        # 宿にチェックインできる状態になる時刻
+        arrived_at = None           # この日に現地へ着いた時刻（夕食の時刻の判断に使う）
 
         # 朝食（前夜に泊まっている場合）
         prev_night = night_stops[k - 1] if 1 <= k <= len(night_stops) else None
@@ -732,57 +775,79 @@ def build_plan(cand: Candidate, cond: Conditions, destinations: list[dict], dest
 
         # 往路
         if sk.kind in ("arrival", "daytrip"):
-            ready_at = sk.arrive_dest + 15
+            ready_at = arrived_at = sk.arrive_dest + 15
             if sk.depart_home is None:   # 夜行で朝に到着
                 day.blocks.append(Block(sk.arrive_dest, sk.arrive_dest, "travel", f"到着：{d['name']}", out["route"]))
-                if sk.arrive_dest < 9 * 60 + 30:
+                if out["hours"] >= 16:
+                    _onboard_meals(day, 0, sk.arrive_dest - 15, out, d, tier, cond, caps)
+                elif sk.arrive_dest < 9 * 60 + 30:
                     day.blocks.append(_meal_block(max(sk.arrive_dest + 15, 7 * 60), 30, "breakfast", d, tier, cond,
                                                   foods_left[sk.stop], rng, caps))
                     start = max(start, day.blocks[-1].end)
+                if any(b.title.startswith("昼食") for b in day.blocks):
+                    lunch_done = True
             elif tz_out:
                 day.blocks.append(Block(sk.arrive_dest, sk.arrive_dest, "travel", f"移動：{out['route']}",
                                         f"日本時間 {fmt_time(sk.depart_home)} 発 → 現地時間 {fmt_time(sk.arrive_dest)} 着"
                                         f"（時差 {tz_out:+g} 時間・所要 約{out['hours']:.1f} 時間）", out_cost))
-                if sk.arrive_dest - 15 >= 13 * 60 and sk.depart_home <= 12 * 60:
-                    day.blocks.append(_quick_meal(sk.arrive_dest, "昼食：機内・空港で", d, tier, cond))
+                noon_local = 12 * 60 + 30 + int(tz_out * 60)   # 日本時間 12:30 を現地時間に
+                if sk.depart_home <= 12 * 60 + 30 and noon_local <= sk.arrive_dest - 15:
+                    day.blocks.append(_quick_meal(noon_local, "昼食：機内・空港で（移動中）", d, tier, cond, caps=caps))
                     lunch_done = True
             else:
                 day.blocks.append(Block(sk.depart_home, sk.arrive_dest, "travel", f"移動：{out['route']}",
                                         f"片道 約{out['hours']:.1f} 時間", out_cost))
                 at = _travel_lunch(sk.depart_home, sk.arrive_dest)
                 if at is not None:
-                    day.blocks.append(_quick_meal(at, f"昼食：{on_the_way(out)}", d, tier, cond))
+                    day.blocks.append(_quick_meal(at, f"昼食：{on_the_way(out)}", d, tier, cond, caps=caps))
                     lunch_done = True
 
         if sk.kind == "transfer":
             from_d = stops_d[sk.transfer_from]
             dep = 10 * 60
-            arr = _round15(dep + transfer["hours"] * 60)
-            cost = int(round(transfer["cost"] * engine.units(cond.adults, cond.kids, "rail"), -1))
+            arr = round15(dep + transfer["hours"] * 60)
             day.blocks.append(Block(dep, arr, "travel", f"移動：{transfer['route']}",
-                                    f"{from_d['name']} → {d['name']}（約{transfer['hours']:.1f} 時間）", cost))
+                                    f"{from_d['name']} → {d['name']}（約{transfer['hours']:.1f} 時間）",
+                                    _transfer_cost(transfer, cond, day_date)))
             at = _travel_lunch(dep, arr)
             if at is not None:
-                day.blocks.append(_quick_meal(at, "昼食：移動中に駅弁・軽食", d, tier, cond))
+                day.blocks.append(_quick_meal(at, f"昼食：{on_the_way({'mode': link_mode(transfer)})}", d, tier, cond,
+                                              caps=caps))
                 lunch_done = True
             start = arr + 15
-            ready_at = arr + 15
+            ready_at = arrived_at = arr + 15
 
         # 夜の予定（宿・夕食）から逆算して観光を切り上げる
         lo = stops_d[sk.night_stop]["lodging"][tier] if sk.night_stop is not None else None
         if lo is not None:
             end = min(end, (RYOKAN_CHECKIN if lo["meals"] >= 2 else HOTEL_CHECKIN) - 15)
         dinner_before_return = False
-        if sk.kind in ("departure", "daytrip") and sk.back_depart is not None and sk.back_depart >= 19 * 60 + 30:
+        if sk.kind in ("departure", "daytrip") and sk.back_depart is not None \
+                and sk.back_depart >= DINNER_BEFORE_RETURN:
             end = min(end, DAY_END)   # 帰る前に夕食をとる
             dinner_before_return = True
 
         placed: list[dict] = []
         if start is not None and end is not None and end - start >= 45:
             capacity = end - start - (LUNCH_MIN if not lunch_done and start < LUNCH_LATEST and end > LUNCH_EARLIEST else 0)
-            spots = choose_day_spots(ranked[sk.stop], used, start, end, max(0, capacity), cond.pace, day_date, caps)
-            placed = _layout_sightseeing(day, spots, start, end, d, sk.stop, tier, cond, foods_left[sk.stop], rng,
-                                         caps, lunch_done)
+            long_spot = None
+            if sk.kind == "full":
+                # 観光枠に入りきらない丸一日のスポット（縄文杉・テーマパークなど）は、
+                # その日の最有力候補なら早朝出発の 1 日として組む
+                regular = [s for _, s in ranked[sk.stop] if s["name"] not in used and is_open(s, day_date)
+                           and not is_night_spot(s) and (caps.spot is None or s["cost"] <= caps.spot)]
+                if regular and _dur(regular[0]) + MOVE_SAME_AREA > capacity and \
+                        _full_day_begin(regular[0], end) is not None:
+                    long_spot = regular[0]
+            if long_spot is not None:
+                _layout_full_day_spot(day, long_spot, _full_day_begin(long_spot, end), end, d, sk.stop, tier, cond,
+                                      foods_left[sk.stop], rng, caps)
+                placed = [long_spot]
+            else:
+                spots = choose_day_spots(ranked[sk.stop], used, start, end, max(0, capacity), cond.pace, day_date,
+                                         caps)
+                placed = _layout_sightseeing(day, spots, start, end, d, sk.stop, tier, cond, foods_left[sk.stop],
+                                             rng, caps, lunch_done)
             used.update(s["name"] for s in placed)
             day.areas = list(dict.fromkeys(s["area"] for s in placed))
             if placed:
@@ -792,23 +857,27 @@ def build_plan(cand: Candidate, cond: Conditions, destinations: list[dict], dest
         if lo is not None:
             nd = stops_d[sk.night_stop]
             day.lodging = lodging_label(lo)
-            checkin = max(RYOKAN_CHECKIN if lo["meals"] >= 2 else HOTEL_CHECKIN, _round15(ready_at))
+            checkin = max(RYOKAN_CHECKIN if lo["meals"] >= 2 else HOTEL_CHECKIN, round15(ready_at))
             day.blocks.append(Block(checkin, checkin + 30, "lodging", f"チェックイン：{lo['type']}",
                                     f"{nd['name']}泊・{LODGING_MEALS_LABELS[lo['meals']]}"))
             dinner_at = max(DINNER_START, checkin + 30)
-            if dinner_at <= 21 * 60:
+            if dinner_at <= DINNER_LATEST:
                 dinner = _meal_block(dinner_at, DINNER_MIN, "dinner", nd, tier, cond, foods_left[sk.night_stop], rng,
                                      caps, at_lodging=lo["meals"] >= 2)
                 _add_drink(dinner, foods_left[sk.night_stop], cond, rng, caps)
+                day.blocks.append(dinner)
+                night_start = max(NIGHT_START, dinner.end + 15)
             else:
-                dinner = _quick_meal(dinner_at, "夕食：到着が遅いので軽めに（駅弁・コンビニなど）", nd, tier, cond, 30)
-            day.blocks.append(dinner)
-            night_start = max(NIGHT_START, dinner.end + 15)
+                # 到着が遅い：夕食は移動中（機内・車内）か到着前に済ませる
+                how = on_the_way(out) if sk.kind == "arrival" else "移動中に"
+                day.blocks.append(_quick_meal(arrived_at - 15 if arrived_at else checkin, f"夕食：{how}（到着が遅いため）",
+                                              nd, tier, cond, caps=caps))
+                night_start = NIGHT_LATEST_END   # 夜のスポットは入れない
             if cond.pace != "relaxed" or rng.random() < 0.5:
                 night_pool = [s for _, s in ranked[sk.night_stop]
                               if "night" in s["when"] and s["name"] not in used and is_open(s, day_date)
                               and (caps.spot is None or s["cost"] <= caps.spot)
-                              and night_start + int(s["hours"] * 60) <= NIGHT_LATEST_END
+                              and night_start + _dur(s) <= NIGHT_LATEST_END
                               and (cond.relation != "family_kids" or "family_kids" in s.get("fit", []))]
                 if night_pool:
                     s = night_pool[0]
@@ -826,13 +895,16 @@ def build_plan(cand: Candidate, cond: Conditions, destinations: list[dict], dest
                                      foods_left[sk.stop], rng, caps)
                 _add_drink(dinner, foods_left[sk.stop], cond, rng, caps)
                 day.blocks.append(dinner)
-            elif 17 * 60 <= back_dep <= 21 * 60:
-                day.blocks.append(_quick_meal(back_dep, f"夕食：帰りの{on_the_way(back)}", d, tier, cond, 30))
+            elif sk.transit_depart is not None:
+                # 昼に出る長い船旅：夕食は船内で
+                _onboard_meals(day, max(back_dep, 17 * 60), 24 * 60, back, d, tier, cond, caps)
+            elif ON_BOARD_DINNER_FROM <= back_dep <= 21 * 60:
+                day.blocks.append(_quick_meal(back_dep, f"夕食：帰りの{on_the_way(back)}", d, tier, cond, 30, caps))
             elif not had_lunch and 11 * 60 <= back_dep <= 15 * 60:
-                day.blocks.append(_quick_meal(back_dep, f"昼食：帰りの{on_the_way(back)}", d, tier, cond, 30))
+                day.blocks.append(_quick_meal(back_dep, f"昼食：帰りの{on_the_way(back)}", d, tier, cond, 30, caps))
             elif not had_lunch and sk.arrive_home is not None and _travel_lunch(back_dep, sk.arrive_home) is not None:
                 day.blocks.append(_quick_meal(_travel_lunch(back_dep, sk.arrive_home), f"昼食：帰りの{on_the_way(back)}",
-                                              d, tier, cond))
+                                              d, tier, cond, caps=caps))
             if sk.transit_depart is not None:
                 day.blocks.append(Block(sk.transit_depart, sk.transit_depart + int(back["hours"] * 60), "travel",
                                         f"帰路：{reverse_route(back['route'])}", "夜行（車中・船中泊）", back_cost))
@@ -843,6 +915,8 @@ def build_plan(cand: Candidate, cond: Conditions, destinations: list[dict], dest
             else:
                 day.blocks.append(Block(back_dep, sk.arrive_home, "travel", f"帰路：{reverse_route(back['route'])}",
                                         f"片道 約{back['hours']:.1f} 時間", back_cost))
+            if sk.arrive_home is not None and sk.arrive_home >= 24 * 60:
+                returns_next_day = True
 
         day.blocks.sort(key=lambda b: (b.start, b.kind == "travel" and b.start > 12 * 60, b.end))
         day.theme = _theme(day, d)
@@ -853,7 +927,8 @@ def build_plan(cand: Candidate, cond: Conditions, destinations: list[dict], dest
     # ── 費用 ──
     transport = out_cost + back_cost
     if transfer:
-        transport += int(round(transfer["cost"] * engine.units(cond.adults, cond.kids, "rail"), -1))
+        transfer_day = next((dd.date for dd in days if dd.kind == "transfer"), cond.start_date)
+        transport += _transfer_cost(transfer, cond, transfer_day)
     lodging_total = 0
     for i, st in enumerate(stops):
         nights_dates = [cond.start_date + timedelta(days=k) for k, s in enumerate(night_stops) if s == i]
@@ -877,14 +952,16 @@ def build_plan(cand: Candidate, cond: Conditions, destinations: list[dict], dest
         days=days, costs=costs, total=total, title=make_title(stops_d, cond, rng),
         reasons=engine.explain(cand, cond, total), tier=tier, tier_note=None, highlights=highlights,
         must_eat=_must_eat(stops_d, days), packing=packing_list(stops_d, cond, out, back),
-        bookings=booking_list(stops, out, back, all_spots, tier),
+        bookings=booking_list(stops, out, back, all_spots, tier, transfer),
         over_budget=total > cond.budget_total, dest_seed=dest_seed, plan_seed=plan_seed,
+        returns_next_day=returns_next_day,
     )
 
 
 def plan_within_budget(cand: Candidate, cond: Conditions, destinations: list[dict],
                        dest_seed: int, plan_seed: int) -> Plan:
-    """予算を超えたら、①宿の段階を下げる ②周遊をやめる ③有料スポット・食事を節約、の順で組み直す。"""
+    """予算を超えたら、①宿の段階を下げる ②周遊をやめる ③有料スポット・食事を節約
+    ④安い行き方にする、の順で組み直す。どれでも収まらなければ、いちばん安い旅程を返す。"""
     first = build_plan(cand, cond, destinations, dest_seed, plan_seed)
     if not first.over_budget:
         return first
@@ -892,47 +969,56 @@ def plan_within_budget(cand: Candidate, cond: Conditions, destinations: list[dic
     lower = tiers[tiers.index(first.tier) + 1:]
     last_tier = lower[-1] if lower else first.tier
     multi = len(first.stops) > 1
-    attempts = [(t, True, CAP_STEPS[0]) for t in lower]
+    attempts = [(t, True, CAP_STEPS[0], None) for t in lower]
     if multi:
-        attempts.append((last_tier, False, CAP_STEPS[0]))
-    attempts += [(last_tier, not multi, c) for c in CAP_STEPS[1:]]
+        attempts.append((last_tier, False, CAP_STEPS[0], None))
+    attempts += [(last_tier, not multi, c, None) for c in CAP_STEPS[1:]]
+    cheap = cand.est.cheap_legs
+    if cheap and cheap != (first.access_out, first.access_back):
+        attempts.append((last_tier, not multi, CAP_STEPS[-1], cheap))
 
-    plan = first
-    for tier, allow_multi, caps in attempts:
+    best = first
+    for tier, allow_multi, caps, legs in attempts:
         retry = build_plan(cand, cond, destinations, dest_seed, plan_seed, tier_override=tier,
-                           allow_multi=allow_multi, caps=caps)
+                           allow_multi=allow_multi, caps=caps, legs=legs)
         notes = []
         if tier != first.tier:
-            notes.append(f"宿を「{LODGING_TIERS[tier]}」の段階に")
+            notes.append(f"宿を「{LODGING_TIERS[tier]}」の段階に" if cond.nights > 0
+                         else f"食事の価格帯を「{LODGING_TIERS[tier]}」に")
         if multi and len(retry.stops) == 1:
             notes.append("周遊をやめて 1 か所に")
         if caps.label:
             notes.append(caps.label)
-        if retry.over_budget:
-            retry.tier_note = (f"{'、'.join(notes)}しても、予算を約 {retry.total - cond.budget_total:,} 円超えています"
-                               if notes else None)
-        else:
+        if legs:
+            notes.append("移動をいちばん安い行き方に")
+        if not retry.over_budget:
             retry.tier_note = f"予算に収めるため、{'、'.join(notes)}しました"
             return retry
-        plan = retry
-    return plan
+        retry.tier_note = (f"{'、'.join(notes)}しても、予算を約 {retry.total - cond.budget_total:,} 円超えています"
+                           if notes else None)
+        if retry.total < best.total:
+            best = retry
+    return best
 
 
 def make_plan(cand: Candidate, cond: Conditions, destinations: list[dict], dest_seed: int, plan_seed: int,
-              alternatives: list[Candidate] | None = None, forced: bool = False, genre_relaxed: bool = False) -> Plan:
+              alternatives: list[Candidate] | None = None, forced: bool = False, genre_relaxed: bool = False,
+              info: dict | None = None) -> Plan:
     plan = plan_within_budget(cand, cond, destinations, dest_seed, plan_seed)
-    plan.reasons = engine.explain(cand, cond, plan.total, genre_relaxed)
+    plan.reasons = engine.explain(cand, cond, plan.total, genre_relaxed, info)
     if plan.tier_note is None and cond.lodging_pref not in ("auto", plan.tier) and cond.nights > 0:
         plan.tier_note = f"予算の都合で、宿は「{LODGING_TIERS[plan.tier]}」の段階にしました"
     add_missions(plan, random.Random(f"mission-{plan_seed}"))
     plan.alternatives = alternatives or []
     plan.forced = forced
+    if info:
+        plan.search_info = info
     return plan
 
 
 def make_plan_from_candidates(cands: list[Candidate], cond: Conditions, destinations: list[dict],
                               dest_seed: int, plan_seed: int, forced: bool = False,
-                              genre_relaxed: bool = False) -> Plan:
+                              genre_relaxed: bool = False, info: dict | None = None) -> Plan:
     """抽選順に旅程を組み、予算に収まった最初の行き先を採用する。
 
     どれも収まらなければ、超過額がいちばん小さい旅程を返す（over_budget のまま）。
@@ -941,7 +1027,7 @@ def make_plan_from_candidates(cands: list[Candidate], cond: Conditions, destinat
     for i, cand in enumerate(cands):
         others = [c for c in cands if c is not cand]
         plan = make_plan(cand, cond, destinations, dest_seed, plan_seed, others, forced=forced or i > 0,
-                         genre_relaxed=genre_relaxed)
+                         genre_relaxed=genre_relaxed, info=info)
         if not plan.over_budget:
             if i > 0:
                 plan.fallback_note = (f"最初に引いた「{cands[0].dest['name']}」は、旅程を組むと予算に収まらなかったため、"
@@ -1011,16 +1097,19 @@ def packing_list(stops: list[dict], cond: Conditions, out: dict, back: dict) -> 
     return list(dict.fromkeys(items))
 
 
-def booking_list(stops: list[Stop], out: dict, back: dict, spots: list[dict], tier: str) -> list[str]:
+def booking_list(stops: list[Stop], out: dict, back: dict, spots: list[dict], tier: str,
+                 transfer: dict | None = None) -> list[str]:
     todo = []
     modes = {out["mode"], back["mode"]}
+    if transfer:
+        modes.add(link_mode(transfer))
     if "flight" in modes:
         todo.append("航空券（早割は早いほど安い。国内線は 2 か月前ごろまでが目安）")
     if "rail" in modes:
         todo.append("新幹線・特急の指定席（1 か月前の 10 時から発売）")
     if "bus" in modes:
         todo.append("高速バス・夜行バス（週末や連休は早めに満席になる）")
-    if _uses_ship(out, back):
+    if _uses_ship(out, back) or "ferry" in modes:
         todo.append("フェリー・高速船（便数が少ない航路は早めに。欠航時の予備日も検討）")
     for st in stops:
         d = st.dest
@@ -1047,7 +1136,16 @@ def add_missions(plan: Plan, rng: random.Random) -> None:
         if not day.has_activity:
             continue
         slept_there = day.kind in ("full", "departure", "transfer")
-        choice = next((m for m in pool if slept_there or m not in MORNING_MISSIONS), None)
+        stays_tonight = day.lodging is not None
+
+        def ok(m: str) -> bool:
+            if m in MORNING_MISSIONS and not slept_there:
+                return False
+            if m in EVENING_MISSIONS and not stays_tonight:
+                return False
+            return True
+
+        choice = next((m for m in pool if ok(m)), None)
         if choice is None:
             continue
         pool.remove(choice)
