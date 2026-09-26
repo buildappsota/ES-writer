@@ -448,7 +448,7 @@ DESTINATIONS = [
              "months": [5, 6, 7, 8, 9, 10], "note": "2000年噴火の熱泥流で壊れた建物が残る。洞爺湖温泉街の裏手から歩ける。冬期閉鎖"},
             {"name": "洞爺湖ビジターセンター・火山科学館", "area": "洞爺湖・有珠山", "kind": "museum", "genres": ["history", "nature"], "niche": 3,
              "hours": 0.75, "cost": 600, "when": ["day"], "indoor": True, "fit": ["family_kids", "solo"],
-             "note": "洞爺湖温泉街にある展示施設。噴火の記録映像や被災物を展示（料金は目安）"},
+             "note": "洞爺湖温泉街にある展示施設。噴火の記録映像や被災物を展示（料金は目安、休館日は要確認）"},
             {"name": "地球岬", "area": "室蘭", "kind": "nature", "genres": ["nature"], "niche": 3,
              "hours": 0.5, "cost": 0, "when": ["day"], "indoor": False, "fit": ["couple", "solo"],
              "note": "断崖の上の灯台と太平洋を望む岬"},

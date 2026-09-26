@@ -648,6 +648,15 @@ def _assign_nights(cond: Conditions, out: dict, back: dict, stops: list[dict]) -
 # ════════════════════════════════════════════════════════════════════
 # 旅程の組み立て
 # ════════════════════════════════════════════════════════════════════
+ON_THE_WAY = {"rail": "車内で駅弁", "bus": "サービスエリア・駅で", "flight": "空港・機内で",
+              "ferry": "船内・港で", "car": "道の駅・サービスエリアで"}
+
+
+def on_the_way(option: dict) -> str:
+    """移動中の食事のとり方（交通手段に合わせた言い方）。"""
+    return ON_THE_WAY.get(option["mode"], "移動中に")
+
+
 def _travel_lunch(dep: int, arr: int) -> int | None:
     """移動が昼どき（12:00〜13:00）にかかるなら、移動中の昼食の時刻を返す。"""
     if dep <= 12 * 60 + 30 and arr >= 12 * 60 + 30:
@@ -742,7 +751,7 @@ def build_plan(cand: Candidate, cond: Conditions, destinations: list[dict], dest
                                         f"片道 約{out['hours']:.1f} 時間", out_cost))
                 at = _travel_lunch(sk.depart_home, sk.arrive_dest)
                 if at is not None:
-                    day.blocks.append(_quick_meal(at, "昼食：移動中に駅弁・空港グルメ", d, tier, cond))
+                    day.blocks.append(_quick_meal(at, f"昼食：{on_the_way(out)}", d, tier, cond))
                     lunch_done = True
 
         if sk.kind == "transfer":
@@ -818,9 +827,12 @@ def build_plan(cand: Candidate, cond: Conditions, destinations: list[dict], dest
                 _add_drink(dinner, foods_left[sk.stop], cond, rng, caps)
                 day.blocks.append(dinner)
             elif 17 * 60 <= back_dep <= 21 * 60:
-                day.blocks.append(_quick_meal(back_dep, "夕食：帰りの車内で駅弁・空港グルメ", d, tier, cond, 30))
-            elif 11 * 60 <= back_dep <= 15 * 60 and not had_lunch:
-                day.blocks.append(_quick_meal(back_dep, "昼食：駅・空港で", d, tier, cond, 30))
+                day.blocks.append(_quick_meal(back_dep, f"夕食：帰りの{on_the_way(back)}", d, tier, cond, 30))
+            elif not had_lunch and 11 * 60 <= back_dep <= 15 * 60:
+                day.blocks.append(_quick_meal(back_dep, f"昼食：帰りの{on_the_way(back)}", d, tier, cond, 30))
+            elif not had_lunch and sk.arrive_home is not None and _travel_lunch(back_dep, sk.arrive_home) is not None:
+                day.blocks.append(_quick_meal(_travel_lunch(back_dep, sk.arrive_home), f"昼食：帰りの{on_the_way(back)}",
+                                              d, tier, cond))
             if sk.transit_depart is not None:
                 day.blocks.append(Block(sk.transit_depart, sk.transit_depart + int(back["hours"] * 60), "travel",
                                         f"帰路：{reverse_route(back['route'])}", "夜行（車中・船中泊）", back_cost))

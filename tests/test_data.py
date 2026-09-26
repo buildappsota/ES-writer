@@ -76,3 +76,38 @@ def test_every_feasible_destination_builds_a_valid_plan(case, month):
             for a, b in zip(timed, timed[1:]):
                 assert a.end <= b.start, (cand.dest["id"], day.number, a.title, b.title)
         render.to_markdown(plan, 5)
+
+
+def test_random_trips_satisfy_invariants():
+    """実データでランダムな条件の旅を組み、時間割・費用の性質が崩れないか。"""
+    import random
+
+    from tests.invariants import violations
+
+    rng = random.Random(2026)
+    hubs = list(HUBS)
+    problems, over, plans = [], 0, 0
+    for i in range(300):
+        rel = rng.choice(["solo", "friends", "couple", "family_kids", "family_adults", "group"])
+        adults = 1 if rel == "solo" else rng.choice([2, 3, 4])
+        kids = rng.choice([1, 2]) if rel == "family_kids" else 0
+        c = engine.Conditions(
+            hub=rng.choice(hubs), start_date=date(2026, rng.randint(1, 12), rng.randint(1, 28)),
+            nights=rng.choice([0, 1, 2, 3, 5, 7]), adults=adults, kids=kids, relation=rel,
+            budget_total=rng.choice([20000, 50000, 100000, 300000]) * (adults + kids),
+            genres=rng.sample(list(GENRES), rng.choice([0, 1, 2])), niche=rng.randint(1, 5),
+            surprise=rng.randint(1, 5), scope=rng.choice(["domestic", "both"]),
+            pace=rng.choice(["relaxed", "normal", "packed"]),
+            transport_pref=rng.choice(["auto", "cheap", "fast", "no_flight"]),
+            lodging_pref=rng.choice(["auto", "budget", "premium"]), multi_stop=rng.choice(["auto", "off", "on"]))
+        result = engine.search(DESTS, c)
+        if not result.candidates:
+            continue
+        picked = engine.pick(result.candidates, c.surprise, random.Random(i), k=4)
+        plan = planner.make_plan_from_candidates(picked, c, DESTS, i, i + 1)
+        plans += 1
+        over += plan.over_budget
+        problems += violations(plan)
+    assert plans > 100
+    assert problems == []
+    assert over / plans < 0.02

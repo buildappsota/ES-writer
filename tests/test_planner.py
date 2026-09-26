@@ -154,9 +154,9 @@ def test_overseas_times_use_local_time(tz, hours, arrive, depart):
     c = cond(hub="tokyo", nights=4, scope="overseas", genres=[], budget_total=10**6)
     plan = make(c, dests=[d], dest_id="test_abroad")
     first = next(b for b in plan.days[0].blocks if b.kind == "travel")
-    last = plan.days[-1].blocks[-1]
+    last = [b for b in plan.days[-1].blocks if b.kind == "travel"][-1]
     assert planner.fmt_time(first.end) == arrive
-    assert last.kind == "travel" and planner.fmt_time(last.start) == depart
+    assert planner.fmt_time(last.start) == depart
     if tz == -19:
         assert "日本時間 21:00 発" in first.detail
         assert "翌21:00" in last.detail  # 日付変更線をまたいで翌日帰着
@@ -189,3 +189,97 @@ def test_drinks_are_added_to_dinner_not_served_as_meals():
     assert "夕食：瀬戸内の地酒" not in titles
     assert any("（＋瀬戸内の地酒）" in t for t in titles)
     assert not planner.is_drink({"name": "甘酒"})
+
+
+# ── レビュー指摘の回帰テスト ────────────────────────────────────────
+from tests.invariants import violations  # noqa: E402
+
+
+def _expensive(d: dict) -> dict:
+    d = copy.deepcopy(d)
+    d["foods"].append({"name": "高級カニ会席", "price": 15000, "meal": "dinner", "note": "テスト"})
+    for s in d["spots"]:
+        if s["name"].startswith("しまなみ"):
+            s["cost"] = 12000
+    return d
+
+
+def test_over_budget_plan_is_trimmed_to_fit():
+    d = _expensive(ONOMICHI)
+    c = cond(nights=1, genres=["activity"], lodging_pref="budget", budget_total=10**6)
+    rich = make(c, dests=[d])
+    tight = cond(nights=1, genres=["activity"], lodging_pref="budget", budget_total=int(rich.total * 0.8))
+    result = engine.search([d], tight)
+    plan = planner.make_plan(result.candidates[0], tight, [d], 1, 2)
+    assert not plan.over_budget, (plan.total, tight.budget_total)
+    assert plan.tier_note and "予算に収める" in plan.tier_note
+
+
+def test_candidates_fallback_when_first_does_not_fit():
+    d = _expensive(ONOMICHI)
+    cheap = make_kurashiki()
+    c = cond(nights=1, genres=[], lodging_pref="budget", budget_total=10**6)
+    first = planner.make_plan(engine.search([d], c).candidates[0], c, [d], 1, 2)
+    budget = first.total - 1  # 1 か所目は削っても……とはならないよう、上限なしの旅程より 1 円だけ少ない
+    tight = cond(nights=1, genres=[], lodging_pref="budget", budget_total=budget)
+    cands = engine.search([d, cheap], tight).candidates
+    cands.sort(key=lambda x: x.dest["id"] != "onomichi_shimanami")
+    plan = planner.make_plan_from_candidates(cands, tight, [d, cheap], 1, 2)
+    assert not plan.over_budget
+
+
+def test_trip_code_roundtrip():
+    assert planner.parse_trip_code("123-456") == (123, 456, None)
+    assert planner.parse_trip_code("123-456-onomichi_shimanami") == (123, 456, "onomichi_shimanami")
+    assert planner.parse_trip_code("123456") is None
+    assert planner.parse_trip_code("abc-def") is None
+    c = cond()
+    result = engine.search(all_fixtures(), c)
+    forced = next(x for x in result.candidates if x.dest["id"] == "kurashiki")
+    plan = planner.make_plan(forced, c, all_fixtures(), 5, 6, forced=True)
+    assert plan.trip_code == "5-6-kurashiki"
+
+
+def test_plan_reroll_keeps_second_stop():
+    c = cond(nights=5, multi_stop="on")
+    result = engine.search(all_fixtures(), c)
+    cand = next(x for x in result.candidates if x.dest["id"] == "onomichi_shimanami")
+    stops = {tuple(s.dest["id"] for s in planner.make_plan(cand, c, all_fixtures(), 9, ps).stops) for ps in range(6)}
+    assert len(stops) == 1
+
+
+def test_day_trip_booking_list_has_no_lodging():
+    plan = make(cond(nights=0))
+    assert not any(b.startswith("宿：") for b in plan.bookings)
+
+
+def test_level3_keeps_highlights_and_prompt_follows_level():
+    plan = make(cond(nights=2))
+    assert "## 見どころ" in render.to_markdown(plan, 3)
+    low = render.claude_prompt(plan, 1)
+    assert "| 時刻 |" not in low and "決め込み度：行き先だけ" in low
+    assert "| 時刻 |" in render.claude_prompt(plan, 4)
+
+
+def test_late_arrival_checks_in_after_arriving():
+    d = copy.deepcopy(ONOMICHI)
+    for hub in d["access"]:
+        d["access"][hub] = [{"mode": "rail", "route": "遠い駅→（在来線）→尾道", "hours": 11.0, "cost": 20000}]
+    c = cond(nights=3, genres=[])
+    plan = make(c, dests=[d])
+    day1 = plan.days[0]
+    arrive = next(b for b in day1.blocks if b.kind == "travel").end
+    checkin = next(b for b in day1.blocks if b.kind == "lodging")
+    assert checkin.start >= arrive
+    assert violations(plan) == []
+
+
+def test_time_window_rules_on_fixtures():
+    d = copy.deepcopy(ONOMICHI)
+    d["spots"].append({"name": "朝市", "area": "尾道市街", "kind": "market", "genres": ["gourmet"], "niche": 3,
+                       "hours": 1.0, "cost": 0, "when": ["morning"], "indoor": False, "fit": [], "note": "テスト"})
+    for nights in (0, 1, 2, 3):
+        for seed in range(5):
+            c = cond(nights=nights, genres=["gourmet", "town"], surprise=3)
+            plan = make(c, dests=[d, make_kurashiki()], seed=seed)
+            assert violations(plan) == [], violations(plan)

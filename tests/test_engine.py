@@ -168,3 +168,43 @@ def test_explain_mentions_budget(nights):
     result = engine.search([ONOMICHI], cond(nights=nights))
     reasons = engine.explain(result.candidates[0], cond(nights=nights))
     assert any("予算" in r for r in reasons)
+
+
+# ── レビュー指摘の回帰テスト ────────────────────────────────────────
+def _with_night_bus(d: dict) -> dict:
+    d = copy.deepcopy(d)
+    d["access"]["osaka"] = [
+        {"mode": "bus", "route": "大阪→（夜行バス）→尾道", "hours": 8.0, "cost": 3000, "overnight": True},
+        {"mode": "rail", "route": "新大阪→（新幹線）→尾道", "hours": 1.7, "cost": 8500},
+    ]
+    return d
+
+
+def test_cheap_pref_skips_overnight_option_on_short_trip():
+    d = _with_night_bus(ONOMICHI)
+    est = engine.estimate(d, cond(nights=1, transport_pref="cheap"))
+    assert est.feasible
+    assert est.access_out["mode"] == "rail" and est.access_back["mode"] == "rail"
+    long = engine.estimate(d, cond(nights=3, transport_pref="cheap", budget_total=10**6))
+    assert long.access_out.get("overnight") and long.access_back.get("overnight")
+
+
+def test_explain_says_over_budget_honestly():
+    result = engine.search([ONOMICHI], cond())
+    reasons = engine.explain(result.candidates[0], cond(), total=cond().budget_total + 12345)
+    assert any("オーバー" in r for r in reasons)
+    assert not any("収まる" in r for r in reasons)
+
+
+def test_explain_niche_wording_depends_on_gap_and_surprise():
+    result = engine.search([ONOMICHI], cond(niche=1, surprise=1))  # ONOMICHI は 3
+    text = " ".join(engine.explain(result.candidates[0], cond(niche=1, surprise=1)))
+    assert "かなり" in text and "サプライズ枠" not in text
+    text5 = " ".join(engine.explain(result.candidates[0], cond(niche=2, surprise=4)))
+    assert "少し" in text5 and "サプライズ枠" in text5
+
+
+def test_explain_mentions_relaxed_genre():
+    result = engine.search([ONOMICHI], cond(genres=["beach"]))
+    text = " ".join(engine.explain(result.candidates[0], cond(genres=["beach"]), genre_relaxed=True))
+    assert "海・リゾート" in text and "問わず" in text
