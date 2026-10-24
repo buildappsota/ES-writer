@@ -1,0 +1,1084 @@
+<title>ワールドトリガー ランク戦</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
+<style>
+/* Layout: a single 16:9 arena canvas (HUD drawn inside it) centred on a dark Border-HQ operations screen,
+   with a thin header above and a key legend below. Dark-first single theme by design (night-time rank war). */
+:root{
+  --bg:#070b14;        /* operations room black-blue */
+  --panel:#0e1524;     /* HUD panel */
+  --line:#223150;      /* hairline */
+  --fg:#dbe6f5;        /* text */
+  --muted:#8494ad;     /* secondary text */
+  --p1:#4fd8ff;        /* player 1 trion */
+  --p2:#ffa348;        /* player 2 trion */
+  --trion:#8af5d2;     /* neutral trion glow */
+  --font-ui:'Zen Kaku Gothic New','Hiragino Sans','Noto Sans JP',system-ui,sans-serif;
+  --font-num:'Rajdhani','Zen Kaku Gothic New',system-ui,sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-ui);
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:10px;box-sizing:border-box;min-height:100%;
+  display:flex;flex-direction:column;gap:10px;align-items:center;
+}
+header{width:100%;max-width:1280px;display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;min-width:0}
+header h1{margin:0;font-size:1.05rem;font-weight:900;letter-spacing:.08em}
+header h1 small{font-family:var(--font-num);font-weight:600;color:var(--p1);letter-spacing:.2em;margin-left:.6em;font-size:.8rem}
+header .note{color:var(--muted);font-size:.78rem}
+.stage{
+  position:relative;width:min(100%,calc((100vh - 190px) * 16 / 9));max-width:1280px;aspect-ratio:16/9;
+  background:#05080f;border:1px solid var(--line);border-radius:6px;overflow:hidden;
+  box-shadow:0 0 0 1px #0a1222 inset,0 20px 60px -30px #000;
+}
+.stage canvas{display:block;width:100%;height:100%;outline:none;touch-action:none}
+.stage .hint{
+  position:absolute;inset:auto 0 0 0;padding:6px 12px;background:linear-gradient(180deg,transparent,#000c);
+  font-family:var(--font-num);font-size:.8rem;letter-spacing:.12em;color:var(--muted);text-align:center;pointer-events:none
+}
+.legend{width:100%;max-width:1280px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px 18px;font-size:.78rem;color:var(--muted)}
+.legend div{min-width:0;display:flex;gap:10px;align-items:baseline}
+.legend b{font-family:var(--font-num);font-weight:700;letter-spacing:.06em;white-space:nowrap}
+.legend .k1 b{color:var(--p1)} .legend .k2 b{color:var(--p2)}
+kbd{font-family:var(--font-num);font-size:.78rem;border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:0 5px;background:var(--panel);color:var(--fg)}
+footer{width:100%;max-width:1280px;color:var(--muted);font-size:.72rem;line-height:1.5}
+@media (max-width:640px){ header h1{font-size:.95rem} .legend{font-size:.72rem} }
+@media (prefers-reduced-motion:reduce){ .stage{box-shadow:none} }
+</style>
+
+<header>
+  <h1>ワールドトリガー ランク戦 <small>RANK BATTLE / FAN-MADE</small></h1>
+  <div class="note">キーボード2人対戦・CPU戦対応。画面をクリックしてから操作してください。</div>
+</header>
+
+<div class="stage">
+  <canvas id="game" tabindex="0" aria-label="対戦画面"></canvas>
+  <div class="hint" id="hint">CLICK TO FOCUS</div>
+</div>
+
+<div class="legend">
+  <div class="k1"><b>P1</b><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移動　<kbd>F</kbd> メイン　<kbd>G</kbd> サブ　<kbd>R</kbd>/<kbd>T</kbd> トリガー切替</span></div>
+  <div class="k2"><b>P2</b><span><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> 移動　<kbd>K</kbd> メイン　<kbd>L</kbd> サブ　<kbd>I</kbd>/<kbd>O</kbd> トリガー切替</span></div>
+  <div><b>共通</b><span><kbd>Enter</kbd> 決定　<kbd>Esc</kbd> 戻る/ポーズ　<kbd>M</kbd> ミュート　ゲームパッド対応（左スティック/十字・A/B/X/Y）</span></div>
+</div>
+<footer>
+  非公式のファンメイド作品です。トリガー名・隊員名は原作（葦原大介『ワールドトリガー』）に基づきますが、数値や挙動はゲーム用に調整しています。合成弾はゲーム内では独立したトリガーとして扱います。
+</footer>
+
+<script>
+(() => {
+'use strict';
+// =====================================================================
+//  DATA
+// =====================================================================
+const W = 1280, H = 720;
+const TAU = Math.PI * 2;
+
+// Trigger catalogue. Numbers are game-balance values, not canon figures. Canon behaviour notes come from fan wikis (see footer).
+const TRIGGERS = {
+  // ---- アタッカー
+  kogetsu:   {name:'弧月',       en:'Kogetsu',   cat:'attacker', kind:'melee', range:76, half:1.15, dmg:30, cd:0.5,  desc:'標準的な刀。攻撃力と耐久を両立。「旋空」を同じセットに入れると長押し→離すで旋空弧月'},
+  kogetsu_spear:{name:'弧月〈槍〉', en:'Kogetsu (Spear)', cat:'attacker', kind:'melee', range:104, half:0.6, dmg:27, cd:0.55, desc:'米屋のために作られた槍型。リーチが長く正面に強い。旋空も使える'},
+  scorpion:  {name:'スコーピオン', en:'Scorpion', cat:'attacker', kind:'melee', range:58, half:0.95, dmg:14, cd:0.22, auto:true, desc:'軽く速い刃。押しっぱなしで連続攻撃。二刀で使うと手数が倍'},
+  raygust:   {name:'レイガスト',  en:'Raygust',   cat:'attacker', kind:'melee', range:66, half:1.0,  dmg:24, cd:0.6,  shieldMode:true, desc:'重く硬い刃。タップで斬撃、長押しでシールドモード（広く硬い）。スラスターを同じセットに入れると素早い2度押しで突進斬り'},
+  sogetsu:   {name:'双月',       en:'Sogetsu',   cat:'attacker', kind:'melee', range:62, half:1.0,  dmg:21, cd:0.36, desc:'玉狛支部製の小型手斧。軽く速い。二刀で使う'},
+  // ---- ガンナー / シューター弾
+  asteroid:  {name:'アステロイド', en:'Asteroid', cat:'gunner', kind:'bullet', path:'straight', dmg:9,  speed:640, rate:0.2, cost:0.8, r:5, life:0.85, desc:'通常弾。特殊効果がない分、威力と弾速が最も高い'},
+  hound:     {name:'ハウンド',    en:'Hound',     cat:'gunner', kind:'bullet', path:'homing',   dmg:7,  speed:430, rate:0.22, cost:1.0, r:5, life:1.8, turn:4.2, desc:'誘導弾。相手を追尾する（レーダーに映らないバッグワーム中の相手は追えない）'},
+  viper:     {name:'バイパー',    en:'Viper',     cat:'gunner', kind:'bullet', path:'viper',    dmg:9,  speed:560, rate:0.22, cost:1.0, r:5, life:1.6, desc:'変化弾。弧を描いてシールドの横から回り込む'},
+  meteora:   {name:'メテオラ',    en:'Meteora',   cat:'gunner', kind:'bullet', path:'straight', dmg:4,  speed:400, rate:0.55, cost:3.0, r:7, life:1.5, blast:{r:74, dmg:20}, desc:'炸裂弾。着弾点で爆発し範囲ダメージ。エスクードも壊せる'},
+  lead:      {name:'鉛弾',        en:'Lead Bullet', cat:'option', kind:'bullet', path:'straight', dmg:0, speed:540, rate:1.4, cost:2.5, r:6, life:1.5, heavy:3.5, noSplit:true, ignoreShield:true, desc:'当たった相手を重くし移動と跳躍を封じる。破壊力がないのでシールドを素通りする（エスクードには防がれる）'},
+  starmaker: {name:'スタアメーカー', en:'Starmaker', cat:'option', kind:'bullet', path:'straight', dmg:0, speed:600, rate:1.2, cost:1.5, r:5, life:1.4, mark:10, noSplit:true, desc:'当てた相手にマーカーを付け、バッグワーム・カメレオンを10秒間無効化する'},
+  // ---- 合成弾（原作ではシューターが2つのキューブを合成する。ゲーム内では独立トリガー扱い）
+  tomahawk:  {name:'トマホーク',  en:'Tomahawk',  cat:'composite', kind:'bullet', path:'viper',    dmg:6,  speed:520, rate:0.9, cost:5, r:7, life:2.0, blast:{r:82, dmg:24}, recipe:'バイパー＋メテオラ', desc:'変化炸裂弾。曲がって爆発する。遮蔽物の裏を狙える'},
+  gimlet:    {name:'ギムレット',  en:'Gimlet',    cat:'composite', kind:'bullet', path:'straight', dmg:30, speed:820, rate:0.8, cost:4, r:6, life:1.1, shieldMul:1.8, recipe:'アステロイド＋アステロイド', desc:'徹甲弾。高威力でシールドに強い'},
+  salamander:{name:'サラマンダー', en:'Salamander', cat:'composite', kind:'bullet', path:'homing', dmg:6, speed:380, rate:1.2, cost:6, r:8, life:2.4, turn:3.2, blast:{r:100, dmg:28}, recipe:'ハウンド＋メテオラ', desc:'誘導炸裂弾。追尾してから爆発する'},
+  hornet:    {name:'ホーネット',  en:'Hornet',    cat:'composite', kind:'bullet', path:'homing',   dmg:9,  speed:470, rate:0.5, cost:3, r:5, life:2.6, turn:7.5, recipe:'ハウンド＋ハウンド', desc:'強化追尾弾。鋭角に曲がって追尾する'},
+  cobra:     {name:'コブラ',      en:'Cobra',     cat:'composite', kind:'bullet', path:'viper',    dmg:16, speed:600, rate:0.5, cost:3, r:5, life:2.0, shieldMul:1.3, recipe:'アステロイド＋バイパー', desc:'高威力の変化弾（原作では名前のみ。挙動はゲーム独自）'},
+  // ---- スナイパー
+  egret:     {name:'イーグレット', en:'Egret',     cat:'sniper', kind:'sniper', dmg:42, speed:1500, charge:0.75, cd:1.3, cost:3, r:5, shieldMul:1.5, desc:'バランス型の狙撃銃。長押しで照準、離して発射。移動中は照準が遅い'},
+  ibis:      {name:'アイビス',    en:'Ibis',      cat:'sniper', kind:'sniper', dmg:72, speed:1100, charge:1.25, cd:2.3, cost:6, r:8, shieldMul:3, breakThrough:true, knock:60, desc:'最高威力。シールドを砕いて貫く。照準が遅く弾速も遅い'},
+  lightning: {name:'ライトニング', en:'Lightning', cat:'sniper', kind:'sniper', dmg:24, speed:1900, charge:0.4, cd:0.85, cost:2, r:4, shieldMul:1, desc:'弾速と連射重視。威力は低くシールドで防がれやすい'},
+  // ---- オプション
+  shield:    {name:'シールド',    en:'Shield',    cat:'option', kind:'shield', hp:50, half:1.05, desc:'長押しで相手方向に展開。耐久は防御・トリオンに比例。両手で張ると広くなる。耐久を超えると割れる'},
+  grasshopper:{name:'グラスホッパー', en:'Grasshopper', cat:'option', kind:'dash', distance:170, dur:0.14, cd:0.55, cost:1.5, desc:'反発足場で跳躍。入力方向へ飛ぶ（無入力なら相手へ）'},
+  teleporter:{name:'テレポーター', en:'Teleporter', cat:'option', kind:'blink', distance:240, cd:1.6, cost:3, desc:'見ている方向へ瞬間移動。壁は越えられず、距離が長いほど再使用が遅い'},
+  thruster:  {name:'スラスター',  en:'Thruster',  cat:'option', kind:'thruster', distance:230, dur:0.18, cd:1.2, cost:3, dmg:34, desc:'トリオン噴射で相手へ突進。レイガスト使用中なら突進斬り。レイガストと同じセットならレイガストの2度押しでも発動'},
+  bagworm:   {name:'バッグワーム', en:'Bagworm',   cat:'option', kind:'toggle', desc:'レーダーから消えるマント。視線が通らない相手は自動照準・誘導弾・狙撃ロックができなくなる。少しずつトリオンを消費'},
+  chameleon: {name:'カメレオン',  en:'Chameleon', cat:'option', kind:'toggle', drain:2, desc:'光学迷彩で透明化。攻撃すると解除。レーダーには映る。トリオンを消費し続ける'},
+  spider:    {name:'スパイダー',  en:'Spider',    cat:'option', kind:'place', cd:0.7, cost:2, desc:'入力方向にワイヤーを張る（最大4本）。触れた相手を一瞬拘束。弧月などで切られる'},
+  escudo:    {name:'エスクード',  en:'Escudo',    cat:'option', kind:'place', cd:2.0, cost:5, hp:60, life:7, desc:'正面に壁を生やす。弾も移動も遮るが、自分の弾も通らない'},
+  senku:     {name:'旋空',        en:'Senku',     cat:'option', kind:'passive', range:230, dmg:40, cost:4, cd:1.1, chargeTime:0.3, desc:'弧月の刃を瞬間的に伸ばす。弧月長押し→離すで発動。壁越しにも届きシールドを砕く'},
+};
+for (const k in TRIGGERS) TRIGGERS[k].id = k;
+const TRIGGER_ORDER = ['kogetsu','kogetsu_spear','scorpion','raygust','sogetsu','asteroid','hound','viper','meteora','tomahawk','gimlet','salamander','hornet','cobra','egret','ibis','lightning','shield','grasshopper','teleporter','thruster','bagworm','chameleon','spider','escudo','senku','lead','starmaker'];
+const CAT_LABEL = {attacker:'アタッカー', gunner:'ガンナー/シューター', composite:'合成弾', sniper:'スナイパー', option:'オプション'};
+
+// Characters. st = [トリオン, 攻撃, 防御・援護, 機動, 技術, 射程, 指揮, 特殊戦術] from the Border Briefing File (BBF) as reported by fan wikis
+// (pixiv百科事典 / ワールドトリガー@wiki); flags.est marks characters whose BBF values are not published (estimated for the game).
+// style: 'shooter' = cube volleys (hold to split), 'gunner' = single shots.  Slots follow the BBF trigger sets; composite bullets are
+// given as explicit slots where the canon describes the character using them.
+const CHARS = [
+  {id:'kuga',      name:'空閑遊真', kana:'くが ゆうま',     squad:'玉狛第2',  pos:'アタッカー',     rank:'B級', style:'gunner', st:[7,9,8,10,8,2,5,4],  main:['scorpion','grasshopper','shield',''], sub:['scorpion','grasshopper','shield','bagworm'], flags:{}, note:'二刀スコーピオンとグラスホッパー乱反射の速攻型'},
+  {id:'mikumo',    name:'三雲修',   kana:'みくも おさむ',   squad:'玉狛第2',  pos:'シューター',     rank:'B級', style:'shooter', st:[2,3,4,4,5,4,6,4],   main:['raygust','thruster','','spider'], sub:['asteroid','','shield','bagworm'], flags:{}, note:'正隊員最低のトリオン2。レイガストの盾とスパイダーで粘る'},
+  {id:'amatori',   name:'雨取千佳', kana:'あまとり ちか',   squad:'玉狛第2',  pos:'スナイパー',     rank:'B級', style:'gunner', st:[38,2,5,3,6,8,1,1], main:['ibis','egret','shield','lightning'], sub:['bagworm','shield','lead',''], flags:{}, note:'規格外のトリオン38。アイビスが砲撃になる'},
+  {id:'hyuse',     name:'ヒュース', kana:'ひゅーす',        squad:'玉狛第2',  pos:'アタッカー',     rank:'B級', style:'shooter', st:[10,11,9,9,9,4,6,8], main:['kogetsu','senku','shield',''], sub:['viper','escudo','shield','bagworm'], flags:{est:true}, note:'弧月とバイパー、エスクードの多段展開。BBF値は未掲載のため推定'},
+  {id:'jin',       name:'迅悠一',   kana:'じん ゆういち',   squad:'玉狛第1',  pos:'アタッカー',     rank:'S級', style:'gunner', st:[7,10,15,7,9,1,7,3], main:['scorpion','escudo','shield',''], sub:['scorpion','escudo','shield','bagworm'], flags:{}, note:'防御・援護15は全隊員最高。スコーピオンの考案者'},
+  {id:'tachikawa', name:'太刀川慶', kana:'たちかわ けい',   squad:'太刀川隊', pos:'アタッカー',     rank:'A級1位', style:'gunner', st:[6,14,9,8,8,2,7,2], main:['kogetsu','senku','shield','grasshopper'], sub:['kogetsu','senku','shield','bagworm'], flags:{}, note:'攻撃14は現役最高。二刀弧月＋旋空'},
+  {id:'kazama',    name:'風間蒼也', kana:'かざま そうや',   squad:'風間隊',   pos:'アタッカー',     rank:'A級3位', style:'gunner', st:[6,9,8,9,9,1,9,8], main:['scorpion','','shield',''], sub:['scorpion','chameleon','shield','bagworm'], flags:{}, note:'カメレオンで消えて二刀スコーピオンで奇襲'},
+  {id:'murakami',  name:'村上鋼',   kana:'むらかみ こう',   squad:'鈴鳴第一', pos:'アタッカー',     rank:'B級', style:'gunner', st:[7,9,10,7,9,2,5,3],  main:['kogetsu','senku','shield',''], sub:['raygust','thruster','shield','bagworm'], flags:{}, note:'唯一の弧月＋レイガスト二刀。受けが堅い'},
+  {id:'ninomiya',  name:'二宮匡貴', kana:'にのみや まさたか', squad:'二宮隊', pos:'シューター',     rank:'B級1位', style:'shooter', st:[14,12,7,6,8,6,7,2], main:['asteroid','hound','meteora','shield'], sub:['hornet','gimlet','salamander','bagworm'], flags:{}, note:'トリオン14の高火力射手。合成弾ホーネット／ギムレット／サラマンダー'},
+  {id:'izumi',     name:'出水公平', kana:'いずみ こうへい', squad:'太刀川隊', pos:'シューター',     rank:'A級1位', style:'shooter', st:[12,8,10,5,9,5,3,4], main:['asteroid','viper','meteora','shield'], sub:['hound','tomahawk','gimlet','bagworm'], flags:{}, note:'4弾種すべてマスタークラス。合成弾の考案者'},
+  {id:'kageura',   name:'影浦雅人', kana:'かげうら まさと', squad:'影浦隊',   pos:'アタッカー',     rank:'B級', style:'gunner', st:[7,12,5,7,9,2,4,5],  main:['scorpion','','shield',''], sub:['scorpion','','shield','bagworm'], flags:{mantis:true}, note:'二刀スコーピオンを連結する「マンティス」（長押し→離す）'},
+  {id:'yoneya',    name:'米屋陽介', kana:'よねや ようすけ', squad:'三輪隊',   pos:'アタッカー',     rank:'A級7位', style:'gunner', st:[4,8,8,9,9,2,4,4], main:['kogetsu_spear','senku','shield',''], sub:['shield','bagworm','',''], flags:{}, note:'特注の槍型弧月。低トリオンを機動と技術で補う'},
+  {id:'toma',      name:'当真勇',   kana:'とうま いさみ',   squad:'冬島隊',   pos:'スナイパー',     rank:'A級2位', style:'gunner', st:[6,9,7,4,13,10,2,2], main:['egret','shield','',''], sub:['bagworm','shield','',''], flags:{}, note:'狙撃手1位。技術13のイーグレット一本'},
+  {id:'azuma',     name:'東春秋',   kana:'あずま はるあき', squad:'東隊',     pos:'スナイパー',     rank:'B級', style:'gunner', st:[7,8,11,5,10,10,10,5], main:['ibis','egret','shield','lightning'], sub:['bagworm','shield','',''], flags:{}, note:'ボーダー最初の狙撃手。扱いづらいアイビスを主武器に使う'},
+  {id:'karasuma',  name:'烏丸京介', kana:'からすま きょうすけ', squad:'玉狛第1', pos:'オールラウンダー', rank:'A級', style:'gunner', st:[7,8,8,7,8,4,6,5], main:['kogetsu','asteroid','viper','shield'], sub:['escudo','shield','','bagworm'], flags:{}, note:'突撃銃と弧月を使い分ける万能手'},
+  {id:'midorikawa', name:'緑川駿',  kana:'みどりかわ しゅん', squad:'草壁隊',  pos:'アタッカー',     rank:'A級4位', style:'gunner', st:[5,9,6,11,7,1,3,2],  main:['scorpion','grasshopper','shield',''], sub:['scorpion','grasshopper','shield','bagworm'], flags:{}, note:'機動11はボーダー最高。グラスホッパー乱反射の元祖'},
+  {id:'ikoma',     name:'生駒達人', kana:'いこま たつひと', squad:'生駒隊',   pos:'アタッカー',     rank:'B級', style:'gunner', st:[7,10,7,8,10,3,6,4], main:['kogetsu','senku','shield',''], sub:['','','shield','bagworm'], flags:{est:true, senkuMul:2.4}, note:'起動0.2秒・射程40mの生駒旋空。BBF値は未掲載のため推定'},
+  {id:'oji',       name:'王子一彰', kana:'おうじ かずあき', squad:'王子隊',   pos:'アタッカー',     rank:'B級', style:'shooter', st:[7,8,7,8,8,3,7,3], main:['kogetsu','senku','shield',''], sub:['scorpion','hound','shield','bagworm'], flags:{est:true}, note:'弧月＋スコーピオンにハウンドを絡める変則型。BBF値は未掲載のため推定'},
+  {id:'katori',    name:'香取葉子', kana:'かとり ようこ',   squad:'香取隊',   pos:'オールラウンダー', rank:'B級', style:'gunner', st:[6,9,6,8,7,3,5,2], main:['scorpion','asteroid','shield','grasshopper'], sub:['scorpion','hound','shield','bagworm'], flags:{}, note:'拳銃からスコーピオンを出す近接射撃型'},
+  {id:'kako',      name:'加古望',   kana:'かこ のぞみ',     squad:'加古隊',   pos:'シューター',     rank:'A級6位', style:'shooter', st:[9,8,5,7,8,4,6,7], main:['scorpion','','shield','bagworm'], sub:['hound','asteroid','shield','teleporter'], flags:{}, note:'ハウンドとテレポーターで翻弄する射手'},
+  {id:'arashiyama', name:'嵐山准',  kana:'あらしやま じゅん', squad:'嵐山隊', pos:'オールラウンダー', rank:'A級5位', style:'gunner', st:[7,7,9,7,8,4,8,4], main:['asteroid','meteora','shield',''], sub:['scorpion','teleporter','shield','bagworm'], flags:{}, note:'突撃銃の中距離万能手。テレポーターで回避'},
+  {id:'kitora',    name:'木虎藍',   kana:'きとら あい',     squad:'嵐山隊',   pos:'オールラウンダー', rank:'A級5位', style:'gunner', st:[4,8,7,8,9,3,6,4], main:['asteroid','spider','shield',''], sub:['scorpion','','shield','bagworm'], flags:{}, note:'拳銃とスパイダーのワイヤー戦法'},
+  {id:'suwa',      name:'諏訪洸太郎', kana:'すわ こうたろう', squad:'諏訪隊', pos:'ガンナー',       rank:'B級', style:'gunner', st:[6,9,6,7,7,3,5,2],   main:['asteroid','','shield',''], sub:['asteroid','starmaker','shield','bagworm'], flags:{shotgun:true}, note:'両手散弾銃の瞬間火力。スタアメーカーで隠密を暴く'},
+  {id:'miwa',      name:'三輪秀次', kana:'みわ しゅうじ',   squad:'三輪隊',   pos:'オールラウンダー', rank:'A級7位', style:'gunner', st:[6,8,8,7,9,3,6,5], main:['kogetsu','','shield','bagworm'], sub:['asteroid','viper','shield','lead'], flags:{}, note:'鉛弾で足を止めて弧月でとどめ'},
+  {id:'konami',    name:'小南桐絵', kana:'こなみ きりえ',   squad:'玉狛第1',  pos:'アタッカー',     rank:'A級', style:'shooter', st:[6,13,7,10,9,3,4,3], main:['sogetsu','meteora','shield',''], sub:['sogetsu','meteora','shield','bagworm'], flags:{}, note:'双月二刀の攻撃13。メテオラも投げる'},
+  {id:'nasu',      name:'那須玲',   kana:'なす れい',       squad:'那須隊',   pos:'シューター',     rank:'B級', style:'shooter', st:[7,8,6,8,8,4,5,4], main:['viper','asteroid','shield','meteora'], sub:['viper','tomahawk','shield','bagworm'], flags:{}, note:'即興で弾道を引くバイパーの名手。トマホークも撃つ'},
+  {id:'narasaka',  name:'奈良坂透', kana:'ならさか とおる', squad:'三輪隊',   pos:'スナイパー',     rank:'A級7位', style:'gunner', st:[6,9,7,5,12,12,4,1], main:['egret','ibis','shield','lightning'], sub:['bagworm','','shield',''], flags:{}, note:'狙撃手2位。技術12・射程12'},
+  {id:'yuba',      name:'弓場拓磨', kana:'ゆば たくま',     squad:'弓場隊',   pos:'ガンナー',       rank:'B級', style:'gunner', st:[7,10,5,7,9,2.5,5,2], main:['asteroid','viper','shield',''], sub:['asteroid','viper','shield','bagworm'], flags:{gunRange:1.3}, note:'リボルバー二丁。射程22mのアタッカーキラー'},
+  {id:'inukai',    name:'犬飼澄晴', kana:'いぬかい すみはる', squad:'二宮隊', pos:'ガンナー',       rank:'B級1位', style:'gunner', st:[8,8,7,7,8,4,5,2], main:['asteroid','hound','shield',''], sub:['hound','scorpion','shield','bagworm'], flags:{}, note:'突撃銃のマスタークラス銃手'},
+  {id:'ema',       name:'絵馬ユズル', kana:'えま ゆずる',   squad:'影浦隊',   pos:'スナイパー',     rank:'B級', style:'gunner', st:[6,8,6,5,10,9,2,1], main:['ibis','egret','shield','lightning'], sub:['bagworm','','shield',''], flags:{}, note:'14歳の狙撃手。状況で3種を使い分ける'},
+];
+const POS_TAG = {'アタッカー':'AT','ガンナー':'GN','シューター':'SH','スナイパー':'SN','オールラウンダー':'AR'};
+const STAT_NAMES = ['トリオン','攻撃','防御・援護','機動','技術','射程','指揮','特殊戦術'];
+
+// Maps: axis-aligned building blocks. Arena is 1280x720.
+const MAPS = [
+  {name:'市街地A', spawns:[[150,360],[1130,360]], rects:[
+    [180,110,120,90],[980,110,120,90],[320,300,80,120],[880,300,80,120],[560,70,160,60],[560,590,160,60],[600,320,80,80],[180,520,120,90],[980,520,120,90]]},
+  {name:'市街地B', spawns:[[120,120],[1160,600]], rects:[
+    [540,260,200,200],[250,180,60,60],[970,180,60,60],[250,480,60,60],[970,480,60,60],[80,330,40,60],[1160,330,40,60],[440,60,80,40],[760,620,80,40],[120,600,100,40],[1060,80,100,40]]},
+  {name:'河川敷', spawns:[[140,600],[1140,120]], rects:[
+    [620,0,40,250],[620,470,40,250],[200,350,50,50],[1030,320,50,50],[330,120,70,40],[880,560,70,40]]},
+];
+
+// =====================================================================
+//  ENGINE CORE
+// =====================================================================
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const hintEl = document.getElementById('hint');
+let DPR = 1;
+function resize(){ DPR = Math.min(2, window.devicePixelRatio || 1); canvas.width = W * DPR; canvas.height = H * DPR; }
+resize(); window.addEventListener('resize', resize);
+
+const clamp = (v,a,b) => v < a ? a : v > b ? b : v;
+const lerp = (a,b,t) => a + (b-a) * t;
+const rnd = (a,b) => a + Math.random() * (b-a);
+const dist = (ax,ay,bx,by) => Math.hypot(bx-ax, by-ay);
+function angDiff(a,b){ let d = (b-a) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; }
+function circleRect(cx,cy,r,rx,ry,rw,rh){ const nx = clamp(cx,rx,rx+rw), ny = clamp(cy,ry,ry+rh); const dx = cx-nx, dy = cy-ny; return dx*dx + dy*dy < r*r; }
+function segRect(x1,y1,x2,y2,r){ // Liang-Barsky clip test
+  let t0 = 0, t1 = 1; const dx = x2-x1, dy = y2-y1;
+  const p = [-dx, dx, -dy, dy], q = [x1-r.x, r.x+r.w-x1, y1-r.y, r.y+r.h-y1];
+  for (let i=0;i<4;i++){ if (p[i] === 0){ if (q[i] < 0) return false; } else { const t = q[i]/p[i]; if (p[i] < 0){ if (t > t1) return false; if (t > t0) t0 = t; } else { if (t < t0) return false; if (t < t1) t1 = t; } } }
+  return true;
+}
+function segCircleDist(x1,y1,x2,y2,px,py){ const dx = x2-x1, dy = y2-y1; const l2 = dx*dx+dy*dy || 1; const t = clamp(((px-x1)*dx + (py-y1)*dy)/l2, 0, 1); return Math.hypot(px-(x1+dx*t), py-(y1+dy*t)); }
+
+// ---------- audio (synthesised, no assets)
+let AC = null, muted = false;
+function audioInit(){ if (AC) return; try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { AC = null; } }
+const SFX = { shot:['square',900,300,0.08,0.04], slash:['sawtooth',520,120,0.12,0.06], hit:['triangle',240,70,0.16,0.09], shield:['sine',1300,700,0.1,0.05], boom:['sawtooth',110,30,0.45,0.18], bail:['sine',880,110,0.9,0.14], ui:['square',700,700,0.05,0.03], dash:['sine',320,980,0.1,0.05], snipe:['square',1600,180,0.25,0.09], ready:['sine',600,1200,0.15,0.05], start:['square',440,880,0.3,0.08] };
+function sfx(name){ if (!AC || muted) return; const P = SFX[name]; if (!P) return; if (AC.state === 'suspended') AC.resume(); const t = AC.currentTime; const o = AC.createOscillator(), g = AC.createGain(); o.connect(g); g.connect(AC.destination); o.type = P[0]; o.frequency.setValueAtTime(P[1], t); o.frequency.exponentialRampToValueAtTime(Math.max(20,P[2]), t+P[3]); g.gain.setValueAtTime(P[4], t); g.gain.exponentialRampToValueAtTime(0.0001, t+P[3]); o.start(t); o.stop(t+P[3]+0.02); }
+
+// ---------- input
+const KEYMAP = [
+  {up:'KeyW', down:'KeyS', left:'KeyA', right:'KeyD', main:'KeyF', sub:'KeyG', swMain:'KeyR', swSub:'KeyT'},
+  {up:'ArrowUp', down:'ArrowDown', left:'ArrowLeft', right:'ArrowRight', main:'KeyK', sub:'KeyL', swMain:'KeyI', swSub:'KeyO'},
+];
+const keys = Object.create(null), kPressed = Object.create(null), kReleased = Object.create(null);
+const PREVENT = new Set(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space']);
+window.addEventListener('keydown', e => { if (PREVENT.has(e.code)) e.preventDefault(); if (e.repeat) return; keys[e.code] = true; kPressed[e.code] = true; audioInit(); hintEl.hidden = true; });
+window.addEventListener('keyup', e => { keys[e.code] = false; kReleased[e.code] = true; });
+window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+canvas.addEventListener('pointerdown', () => { canvas.focus(); audioInit(); hintEl.hidden = true; });
+const padPrev = [{}, {}];
+function padState(i){
+  const pads = navigator.getGamepads ? navigator.getGamepads() : null; const gp = pads && pads[i]; if (!gp) return null;
+  const b = j => !!(gp.buttons[j] && gp.buttons[j].pressed);
+  let dx = Math.abs(gp.axes[0]||0) > 0.3 ? gp.axes[0] : 0, dy = Math.abs(gp.axes[1]||0) > 0.3 ? gp.axes[1] : 0;
+  if (b(12)) dy = -1; if (b(13)) dy = 1; if (b(14)) dx = -1; if (b(15)) dx = 1;
+  return {dx, dy, main:b(0), sub:b(1), swMain:b(2), swSub:b(3), confirm:b(9), back:b(8), up:dy<-0.5, down:dy>0.5, left:dx<-0.5, right:dx>0.5};
+}
+function emptyInput(){ return {dx:0,dy:0,main:false,sub:false,swMain:false,swSub:false,mainP:false,subP:false,swMainP:false,swSubP:false,mainR:false,subR:false,upP:false,downP:false,leftP:false,rightP:false,confirmP:false,backP:false}; }
+const IN = [emptyInput(), emptyInput()];
+function readInput(i){
+  const m = KEYMAP[i]; const o = emptyInput();
+  o.dx = (keys[m.right]?1:0) - (keys[m.left]?1:0); o.dy = (keys[m.down]?1:0) - (keys[m.up]?1:0);
+  o.main = !!keys[m.main]; o.sub = !!keys[m.sub]; o.swMain = !!keys[m.swMain]; o.swSub = !!keys[m.swSub];
+  o.mainP = !!kPressed[m.main]; o.subP = !!kPressed[m.sub]; o.swMainP = !!kPressed[m.swMain]; o.swSubP = !!kPressed[m.swSub];
+  o.mainR = !!kReleased[m.main]; o.subR = !!kReleased[m.sub];
+  o.upP = !!kPressed[m.up]; o.downP = !!kPressed[m.down]; o.leftP = !!kPressed[m.left]; o.rightP = !!kPressed[m.right];
+  o.confirmP = !!kPressed['Enter'] || !!kPressed['Space']; o.backP = !!kPressed['Escape'];
+  const g = padState(i), pv = padPrev[i];
+  if (g){
+    if (Math.abs(g.dx) > 0.3 || Math.abs(g.dy) > 0.3){ o.dx = g.dx; o.dy = g.dy; }
+    o.main = o.main || g.main; o.sub = o.sub || g.sub; o.swMain = o.swMain || g.swMain; o.swSub = o.swSub || g.swSub;
+    const edge = k => g[k] && !pv[k], fall = k => !g[k] && pv[k];
+    o.mainP = o.mainP || edge('main'); o.subP = o.subP || edge('sub'); o.swMainP = o.swMainP || edge('swMain'); o.swSubP = o.swSubP || edge('swSub');
+    o.mainR = o.mainR || fall('main'); o.subR = o.subR || fall('sub');
+    o.upP = o.upP || edge('up'); o.downP = o.downP || edge('down'); o.leftP = o.leftP || edge('left'); o.rightP = o.rightP || edge('right');
+    o.confirmP = o.confirmP || edge('confirm') || edge('main'); o.backP = o.backP || edge('back');
+    padPrev[i] = g;
+  } else padPrev[i] = {};
+  return o;
+}
+const anyP = name => IN[0][name] || IN[1][name];
+
+// ---------- global game state
+const G = { screen:'title', mode:'cpu', diff:1, target:2, timeLimit:90, mapIdx:-1, picks:[0,5], custom:[null,null],
+  sel:{cursor:[0,5], locked:[false,false], stage:0}, edit:null, menuIdx:0, pause:false, t:0, titleT:0 };
+const DIFF_NAMES = ['かんたん','ふつう','つよい'];
+const DIFFS = [ {think:0.32, react:0.5, dodge:0.45, acc:0.55, aggr:0.6, sw:0.2}, {think:0.2, react:0.28, dodge:0.75, acc:0.8, aggr:0.8, sw:0.12}, {think:0.12, react:0.14, dodge:0.95, acc:1.0, aggr:1.0, sw:0.06} ];
+let B = null;
+
+function makePlayer(i){
+  const c = CHARS[G.picks[i]]; const set = G.custom[i] || {main:c.main, sub:c.sub};
+  const [tr, atk, def, mob, tech, rng] = c.st; const trc = clamp(tr, 2, 20);
+  const p = { id:i, char:c, color: i===0 ? '#4fd8ff' : '#ffa348', x:0, y:0, r:16, vx:0, vy:0, px:0, py:0,
+    body:100, bodyMax:100, trion:0, trionMax: 60 + trc*8,
+    bulletMul: 0.85 + trc*0.03, bulletR: 1 + (trc-7)*0.04, meleeMul: 0.8 + atk*0.03,
+    shieldMul: (0.8 + def*0.03) * (0.9 + trc*0.02), speed: 165 + mob*9, cdMul: 1.08 - tech*0.01, rangeMul: 1 + (rng-5)*0.02,
+    main:{slots:set.main.filter(x => x && TRIGGERS[x]), idx:0, hold:0, charge:0},
+    sub:{slots:set.sub.filter(x => x && TRIGGERS[x]), idx:0, hold:0, charge:0},
+    cd:{}, aim:0, lock:true, moving:false, stun:0, heavy:0, leak:0, marked:0, wireCd:0, bagworm:false, chameleon:false,
+    shieldActive:false, shieldAng:0, shieldHalf:1, shieldMode:'', shieldCount:0, shield:{hp:0, max:0, broken:0, idle:9},
+    dash:{t:0, vx:0, vy:0, attack:null, hitDone:false}, charging:false, chargeFrac:0, chargingCube:false, cubeFrac:0,
+    bailed:false, bailT:0, bailReason:'', viperSide:1, ai:null, input:emptyInput(), aimErr:0, stats:{dmg:0, hits:0, blocked:0, shots:0} };
+  p.shield.max = TRIGGERS.shield.hp * p.shieldMul; p.shield.hp = p.shield.max; p.trion = p.trionMax;
+  return p;
+}
+function startBattle(){
+  const map = MAPS[G.mapIdx >= 0 ? G.mapIdx : Math.floor(Math.random()*MAPS.length)];
+  map.rectsObj = map.rects.map(r => ({x:r[0], y:r[1], w:r[2], h:r[3]}));
+  B = { map, players:[makePlayer(0), makePlayer(1)], bullets:[], fx:[], pops:[], walls:[], wires:[], score:[0,0], round:1, time:G.timeLimit,
+    phase:'countdown', phaseT:3.4, banner:null, shake:0, winner:-1, overT:0 };
+  if (G.mode !== 'vs') aiInit(B.players[1], DIFFS[G.diff]); if (G.mode === 'demo') aiInit(B.players[0], DIFFS[G.diff]);
+  resetRound(); G.screen = 'battle'; G.pause = false; buildBackground();
+}
+function resetRound(){
+  const sp = B.map.spawns; const swap = (B.round % 2 === 0);
+  B.players.forEach((p, i) => {
+    const s = sp[swap ? 1-i : i]; p.x = s[0]; p.y = s[1]; p.px = p.x; p.py = p.y; p.vx = p.vy = 0;
+    p.body = p.bodyMax; p.trion = p.trionMax; p.cd = {}; p.stun = p.heavy = p.leak = p.marked = 0; p.bagworm = p.chameleon = false;
+    p.shield.hp = p.shield.max; p.shield.broken = 0; p.shield.idle = 9; p.shieldActive = false; p.dash.t = 0; p.bailed = false; p.bailT = 0;
+    p.main.idx = 0; p.sub.idx = 0; p.main.hold = p.sub.hold = 0; p.main.charge = p.sub.charge = 0; p.charging = false; p.chargingCube = false;
+    if (p.ai) aiReset(p);
+  });
+  B.players.forEach(p => { const e = enemyOf(p); p.aim = Math.atan2(e.y-p.y, e.x-p.x); });
+  B.bullets.length = 0; B.walls.length = 0; B.wires.length = 0; B.fx.length = 0; B.pops.length = 0;
+  B.time = G.timeLimit; B.phase = 'countdown'; B.phaseT = 3.4; B.banner = null;
+}
+
+const enemyOf = p => B.players[1-p.id];
+function allRects(){ const a = B.map.rectsObj.slice(); for (const w of B.walls) a.push(w); return a; }
+function hasLOS(a,b){ for (const r of allRects()) if (segRect(a.x,a.y,b.x,b.y,r)) return false; return true; }
+function canLock(p,e){ return e.marked > 0 || !e.bagworm || hasLOS(p,e); }
+function hasTrigger(p,id){ return p.main.slots.includes(id) || p.sub.slots.includes(id); }
+function activeId(p,hand){ return p[hand].slots[p[hand].idx] || null; }
+function cdReady(p,k){ return !(p.cd[k] > 0); }
+function setCd(p,k,v){ p.cd[k] = v * p.cdMul; }
+function spend(p,v){ p.trion -= v; }
+function raygustActive(p){ return activeId(p,'main') === 'raygust' || activeId(p,'sub') === 'raygust'; }
+function pushOut(p,r){
+  const cx = clamp(p.x, r.x, r.x+r.w), cy = clamp(p.y, r.y, r.y+r.h); const dx = p.x-cx, dy = p.y-cy; const d = Math.hypot(dx,dy);
+  if (d === 0){ const l = p.x-r.x, rt = r.x+r.w-p.x, t = p.y-r.y, bt = r.y+r.h-p.y; const m = Math.min(l,rt,t,bt);
+    if (m === l) p.x = r.x-p.r; else if (m === rt) p.x = r.x+r.w+p.r; else if (m === t) p.y = r.y-p.r; else p.y = r.y+r.h+p.r; }
+  else { p.x = cx + dx/d*p.r; p.y = cy + dy/d*p.r; }
+}
+function moveEntity(p,dx,dy){
+  p.x += dx; p.y += dy; const rects = allRects();
+  for (let k=0;k<2;k++) for (const r of rects) if (circleRect(p.x,p.y,p.r,r.x,r.y,r.w,r.h)) pushOut(p,r);
+  p.x = clamp(p.x, p.r, W-p.r); p.y = clamp(p.y, p.r, H-p.r);
+}
+function knockback(t,ang,amt){ if (t.dash.t > 0) return; moveEntity(t, Math.cos(ang)*amt, Math.sin(ang)*amt); }
+function pop(x,y,text,color,size){ B.pops.push({x,y,text,color,size:size||18,t:0,dur:0.9}); }
+function hitFx(x,y,color,n){ for (let i=0;i<n;i++){ const a = rnd(0,TAU), s = rnd(40,180); B.fx.push({type:'spark',x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,t:0,dur:rnd(0.25,0.5),color}); } }
+function banner(text, sub, dur){ B.banner = {text, sub:sub||'', t:0, dur:dur||2.2}; }
+
+// ---------- combat
+function shieldBlocks(t,sx,sy){ return t.shieldActive && t.shield.hp > 0 && Math.abs(angDiff(t.shieldAng, Math.atan2(sy-t.y, sx-t.x))) <= t.shieldHalf; }
+function applyHit(t,dmg,sx,sy,kind,att,opt){
+  opt = opt || {}; if (t.bailed || dmg <= 0 || B.phase !== 'fight') return false;
+  if (shieldBlocks(t,sx,sy)){
+    const ray = t.shieldMode === 'raygust'; const mul = (opt.shieldMul || 1) * (ray ? 0.5 : 1);
+    t.shield.hp -= dmg*mul; spend(t, dmg*0.2*(ray ? 0.5 : 1)); t.stats.blocked += dmg;
+    B.fx.push({type:'shieldHit', p:t, t:0, dur:0.22}); sfx('shield');
+    if (t.shield.hp <= 0){ t.shield.hp = 0; t.shield.broken = 1.4; t.shieldActive = false; t.shield.idle = 0;
+      B.fx.push({type:'shieldBreak', x:t.x, y:t.y, ang:t.shieldAng, half:t.shieldHalf, t:0, dur:0.5, color:t.color}); pop(t.x, t.y-36, ray ? 'レイガスト破損' : 'シールド破壊', '#ffffff', 16); sfx('hit'); B.shake = Math.max(B.shake, 4);
+      if (opt.breakThrough) damageBody(t, dmg*0.4, att, kind, sx, sy, opt); }
+    return false;
+  }
+  damageBody(t, dmg, att, kind, sx, sy, opt); return true;
+}
+function damageBody(t,dmg,att,kind,sx,sy,opt){
+  dmg = Math.round(dmg*10)/10; t.body -= dmg; t.leak = Math.max(t.leak, kind === 'melee' ? 4 : 2.5);
+  att.stats.dmg += dmg; att.stats.hits++; pop(t.x + rnd(-12,12), t.y-30, String(Math.round(dmg)), att.color, kind === 'sniper' || dmg >= 30 ? 26 : 18);
+  hitFx(sx, sy, '#ffffff', 6); B.shake = Math.max(B.shake, kind === 'explosion' ? 6 : 3); sfx('hit');
+  if (opt && opt.knock) knockback(t, Math.atan2(t.y-sy, t.x-sx), opt.knock);
+  if (t.body <= 0){ t.body = 0; bailOut(t, 'トリオン体 活動限界'); }
+}
+function bailOut(t, reason){
+  if (t.bailed) return; t.bailed = true; t.bailT = 0; t.bailReason = reason; const w = 1-t.id; B.score[w]++;
+  if (B.phase === 'fight'){ B.phase = 'bailout'; B.phaseT = 2.8; }
+  banner(t.char.name + '　緊急脱出', reason, 2.6); sfx('bail'); B.shake = 8;
+  B.fx.push({type:'bail', x:t.x, y:t.y, t:0, dur:1.3, color:t.color});
+}
+function chargeAttackFor(p,tid){
+  if (tid === 'kogetsu' && hasTrigger(p,'senku')) return {name:'旋空弧月', range:TRIGGERS.senku.range*(p.char.flags.senkuMul||1), dmg:TRIGGERS.senku.dmg, cost:TRIGGERS.senku.cost, cd:TRIGGERS.senku.cd, time:TRIGGERS.senku.chargeTime, key:'senku'};
+  if (tid === 'scorpion' && p.char.flags.mantis) return {name:'マンティス', range:150, dmg:18, cost:2, cd:0.8, time:0.25, key:'mantis'};
+  return null;
+}
+function meleeHitCheck(p,e,range,half,dmg,opt){
+  if (e.bailed) return false; const d = dist(p.x,p.y,e.x,e.y) - e.r; const a = Math.atan2(e.y-p.y, e.x-p.x);
+  if (d <= range && Math.abs(angDiff(p.aim,a)) <= half && (opt.throughWalls || hasLOS(p,e))){ applyHit(e, dmg, p.x, p.y, 'melee', p, opt); return true; }
+  return false;
+}
+function cutThings(p,range,half,dmg){
+  for (const w of B.walls){ const nx = clamp(p.x,w.x,w.x+w.w), ny = clamp(p.y,w.y,w.y+w.h); const d = dist(p.x,p.y,nx,ny); const a = Math.atan2(ny-p.y, nx-p.x); if (d <= range+p.r && Math.abs(angDiff(p.aim,a)) <= half+0.3){ w.hp -= dmg*1.5; hitFx(nx,ny,w.color,3); } }
+  for (let i=B.wires.length-1;i>=0;i--){ const w = B.wires[i]; if (w.owner === p.id) continue; if (segCircleDist(w.x1,w.y1,w.x2,w.y2,p.x,p.y) <= range+p.r){ B.wires.splice(i,1); pop(p.x,p.y-40,'ワイヤー切断',p.color,14); } }
+}
+function doMelee(p,T,hand){
+  const e = enemyOf(p); p.chameleon = false; setCd(p, hand+':'+T.id, T.cd);
+  let range = T.range, half = T.half; if (T.id === 'scorpion' && p.char.flags.spear){ range *= 1.3; half *= 0.7; }
+  B.fx.push({type:'slash', x:p.x, y:p.y, ang:p.aim, range:range+p.r, half, t:0, dur:0.16, color:p.color, w:T.id === 'scorpion' ? 2 : 3, follow:p}); sfx('slash');
+  meleeHitCheck(p, e, range, half, T.dmg*p.meleeMul, {shieldMul:1.5, knock:18});
+  cutThings(p, range, half, T.dmg);
+}
+function doChargeAttack(p,hand,T,ca){
+  const e = enemyOf(p); p.chameleon = false; spend(p, ca.cost); setCd(p, 'charge:'+T.id, ca.cd); setCd(p, hand+':'+T.id, T.cd);
+  B.fx.push({type:'slash', x:p.x, y:p.y, ang:p.aim, range:ca.range+p.r, half:0.55, t:0, dur:0.3, color:p.color, w:5, label:ca.name}); sfx('slash'); sfx('snipe');
+  pop(p.x, p.y-44, ca.name, p.color, 16);
+  meleeHitCheck(p, e, ca.range, 0.55, ca.dmg*p.meleeMul, {shieldMul:3, breakThrough:true, throughWalls:true, knock:40});
+  cutThings(p, ca.range, 0.55, ca.dmg*2);
+}
+function aimPointFor(p,speed){
+  const e = enemyOf(p);
+  if (!p.lock) return {x:p.x + Math.cos(p.aim)*700, y:p.y + Math.sin(p.aim)*700};
+  const d = dist(p.x,p.y,e.x,e.y); const t = d/speed; const evx = clamp(e.vx,-420,420), evy = clamp(e.vy,-420,420); let x = e.x + evx*t*0.8, y = e.y + evy*t*0.8;
+  if (p.aimErr > 0){ const a = Math.atan2(y-p.y, x-p.x) + rnd(-p.aimErr, p.aimErr); x = p.x + Math.cos(a)*d; y = p.y + Math.sin(a)*d; }
+  return {x,y};
+}
+function makeCurve(x0,y0,cx,cy,x1,y1){ const pts = []; let len = 0, px = x0, py = y0; for (let i=0;i<=24;i++){ const t = i/24, u = 1-t; const x = u*u*x0 + 2*u*t*cx + t*t*x1, y = u*u*y0 + 2*u*t*cy + t*t*y1; if (i > 0) len += Math.hypot(x-px, y-py); pts.push({x,y,l:len}); px = x; py = y; } return {pts, len}; }
+function curvePos(c,s){
+  const pts = c.pts;
+  if (s >= c.len){ const a = pts[pts.length-2], b = pts[pts.length-1]; const d = Math.hypot(b.x-a.x, b.y-a.y) || 1; return {x:b.x, y:b.y, tx:(b.x-a.x)/d, ty:(b.y-a.y)/d, end:true}; }
+  let i = 1; while (i < pts.length-1 && pts[i].l < s) i++; const a = pts[i-1], b = pts[i]; const seg = (b.l-a.l) || 1; const t = (s-a.l)/seg; const d = Math.hypot(b.x-a.x, b.y-a.y) || 1;
+  return {x:a.x + (b.x-a.x)*t, y:a.y + (b.y-a.y)*t, tx:(b.x-a.x)/d, ty:(b.y-a.y)/d, end:false};
+}
+function makeBullet(p,T,tx,ty,dmgMul,spread){
+  const speed = T.speed; const a = Math.atan2(ty-p.y, tx-p.x) + (spread || 0); const d = dist(p.x,p.y,tx,ty);
+  const b = { owner:p.id, type:T.id, T, x:p.x + Math.cos(a)*(p.r+8), y:p.y + Math.sin(a)*(p.r+8), vx:Math.cos(a)*speed, vy:Math.sin(a)*speed, speed,
+    r:T.r*p.bulletR, dmg:T.dmg*p.bulletMul*dmgMul, blast: T.blast ? {r:T.blast.r*(0.8+0.2*p.bulletR), dmg:T.blast.dmg*p.bulletMul*dmgMul} : null,
+    life:T.life*p.rangeMul*(p.char.flags.gunRange||1), mode:T.path, turn:T.turn || 0, trail:[], color:p.color, shieldMul:T.shieldMul || 1, breakThrough:!!T.breakThrough, knock:T.knock || 0,
+    heavy:T.heavy || 0, mark:T.mark || 0, ignoreShield:!!T.ignoreShield, sniper:T.kind === 'sniper', t:0 };
+  if (b.blast) b.life = Math.min(b.life, d/speed + 0.03);
+  if (T.path === 'viper' || T.path === 'viperHoming'){
+    const tx2 = p.x + Math.cos(a)*d, ty2 = p.y + Math.sin(a)*d; const side = p.viperSide; p.viperSide *= -1;
+    const mx = (p.x+tx2)/2, my = (p.y+ty2)/2; const nx = -(ty2-p.y)/(d||1), ny = (tx2-p.x)/(d||1);
+    b.curve = makeCurve(p.x, p.y, mx + nx*side*d*0.5, my + ny*side*d*0.5, tx2, ty2); b.s = 0; b.mode = 'curve'; b.after = T.path === 'viperHoming' ? 'homing' : 'straight';
+    if (b.blast) b.life = 99;
+  }
+  return b;
+}
+function fireGun(p,T,hand){
+  const ap = aimPointFor(p, T.speed); let n = 1; if (p.char.flags.shotgun && T.id === 'asteroid') n = 3;
+  for (let i=0;i<n;i++){ const spread = n > 1 ? (i-(n-1)/2)*0.13 : 0; B.bullets.push(makeBullet(p, T, ap.x, ap.y, n > 1 ? 0.65 : 1, spread)); }
+  const oth = activeId(p, hand === 'main' ? 'sub' : 'main'); const dual = oth && TRIGGERS[oth].kind === 'bullet' && p.cd[(hand === 'main' ? 'sub' : 'main')+':'+oth] > 0;
+  spend(p, T.cost*(n > 1 ? 1.6 : 1)); setCd(p, hand+':'+T.id, T.rate*(n > 1 ? 1.5 : 1)*(dual ? 1.7 : 1)); p.stats.shots++; p.chameleon = false; sfx('shot');
+  B.fx.push({type:'muzzle', x:p.x + Math.cos(p.aim)*(p.r+6), y:p.y + Math.sin(p.aim)*(p.r+6), t:0, dur:0.08, color:p.color});
+}
+function fireVolley(p,T,hand,charge){
+  const comp = T.cat === 'composite'; const n = comp ? 2 + (charge >= 0.45 ? 1 : 0) : 3 + Math.round(charge/0.5*4); const dmgMul = comp ? 0.7 : 0.55;
+  const ap = aimPointFor(p, T.speed); const total = comp ? 0.25 : 0.5;
+  for (let i=0;i<n;i++){ const spread = n > 1 ? (i/(n-1) - 0.5)*total : 0; B.bullets.push(makeBullet(p, T, ap.x, ap.y, dmgMul, spread)); }
+  spend(p, T.cost*n*0.6); setCd(p, hand+':'+T.id, T.rate*1.1); p.stats.shots++; p.chameleon = false; sfx('shot');
+  B.fx.push({type:'muzzle', x:p.x + Math.cos(p.aim)*(p.r+6), y:p.y + Math.sin(p.aim)*(p.r+6), t:0, dur:0.1, color:p.color});
+}
+function fireSniper(p,T,hand){
+  const ap = aimPointFor(p, T.speed); const b = makeBullet(p, T, ap.x, ap.y, 1, 0); b.life = 1.2; B.bullets.push(b);
+  spend(p, T.cost); setCd(p, hand+':'+T.id, T.cd); p.stats.shots++; p.chameleon = false; sfx('snipe'); B.shake = Math.max(B.shake, 2);
+  B.fx.push({type:'muzzle', x:b.x, y:b.y, t:0, dur:0.12, color:'#ffffff'});
+}
+function inputDir(p){ const i = p.input; const l = Math.hypot(i.dx, i.dy); if (l < 0.2) return [Math.cos(p.aim), Math.sin(p.aim)]; return [i.dx/l, i.dy/l]; }
+function startDash(p,T,hand,dir,attack){
+  spend(p, T.cost); setCd(p, hand+':'+T.id, T.cd); const sp = T.distance/T.dur;
+  p.dash = {t:T.dur, vx:dir[0]*sp, vy:dir[1]*sp, attack, hitDone:false}; if (attack) p.chameleon = false; sfx('dash');
+  B.fx.push({type:'dash', x:p.x, y:p.y, t:0, dur:0.25, color:p.color, ang:Math.atan2(dir[1],dir[0])});
+}
+function doBlink(p,T,hand){
+  const dir = inputDir(p); let x = p.x, y = p.y, traveled = 0; const step = 8;
+  while (traveled < T.distance){ const nx = x + dir[0]*step, ny = y + dir[1]*step; if (nx < p.r || nx > W-p.r || ny < p.r || ny > H-p.r) break; let hit = false; for (const r of allRects()) if (circleRect(nx,ny,p.r,r.x,r.y,r.w,r.h)){ hit = true; break; } if (hit) break; x = nx; y = ny; traveled += step; }
+  if (traveled < 24){ setCd(p, hand+':'+T.id, 0.3); return; }
+  B.fx.push({type:'blink', x:p.x, y:p.y, x2:x, y2:y, t:0, dur:0.35, color:p.color}); p.x = x; p.y = y; spend(p, T.cost); setCd(p, hand+':'+T.id, T.cd*(0.4 + 0.6*traveled/T.distance)); sfx('dash');
+}
+function placeWire(p,T,hand){
+  const dir = inputDir(p); let x = p.x + dir[0]*22, y = p.y + dir[1]*22, len = 0; const step = 10; const sx = x, sy = y;
+  while (len < 220){ const nx = x + dir[0]*step, ny = y + dir[1]*step; if (nx < 0 || nx > W || ny < 0 || ny > H) break; let hit = false; for (const r of allRects()) if (nx > r.x && nx < r.x+r.w && ny > r.y && ny < r.y+r.h){ hit = true; break; } if (hit) break; x = nx; y = ny; len += step; }
+  if (len < 40) return;
+  const mine = B.wires.filter(w => w.owner === p.id); if (mine.length >= 4) B.wires.splice(B.wires.indexOf(mine[0]), 1);
+  B.wires.push({owner:p.id, x1:sx, y1:sy, x2:x, y2:y, life:14, color:p.color}); spend(p, T.cost); setCd(p, hand+':'+T.id, T.cd); sfx('ui');
+}
+function placeWall(p,T,hand){
+  const horiz = Math.abs(Math.cos(p.aim)) >= Math.abs(Math.sin(p.aim)); const cx = p.x + Math.cos(p.aim)*60, cy = p.y + Math.sin(p.aim)*60;
+  const w = horiz ? 16 : 110, h = horiz ? 110 : 16; const x = clamp(cx-w/2, 0, W-w), y = clamp(cy-h/2, 0, H-h);
+  for (const r of B.map.rectsObj) if (x < r.x+r.w && x+w > r.x && y < r.y+r.h && y+h > r.y) return;
+  const wall = {owner:p.id, x, y, w, h, hp:T.hp*p.shieldMul, hpMax:T.hp*p.shieldMul, life:T.life, color:p.color};
+  B.walls.push(wall); spend(p, T.cost); setCd(p, hand+':'+T.id, T.cd); sfx('ui');
+  for (const q of B.players) if (circleRect(q.x,q.y,q.r,x,y,w,h)) pushOut(q, wall);
+}
+function deployShield(p,hand,mode){
+  if (p.shield.broken > 0 || p.shield.hp <= 0) return;
+  p.shieldCount++; p.shieldActive = true; p.shieldAng = p.aim; const base = mode === 'raygust' ? 1.45 : TRIGGERS.shield.half;
+  p.shieldHalf = p.shieldCount >= 2 ? Math.min(Math.PI, base + 0.8) : base;
+  if (mode === 'raygust') p.shieldMode = 'raygust'; else if (p.shieldCount === 1) p.shieldMode = 'shield';
+}
+function cycleHand(p,hand){ const s = p[hand]; if (s.slots.length < 2) return; s.idx = (s.idx+1) % s.slots.length; s.hold = 0; s.charge = 0; sfx('ui'); }
+function updateHand(p,hand,dt){
+  const Hh = p[hand]; const tid = Hh.slots[Hh.idx]; if (!tid) return; const T = TRIGGERS[tid]; const inp = p.input;
+  const held = inp[hand], pr = inp[hand+'P'], rel = inp[hand+'R']; const key = hand+':'+tid;
+  if (p.stun > 0 || p.bailed){ Hh.hold = 0; Hh.charge = 0; return; }
+  if (held) Hh.hold += dt;
+  switch (T.kind){
+    case 'melee': {
+      const ca = chargeAttackFor(p, tid);
+      if (T.shieldMode){
+        if (pr){
+          const TT = TRIGGERS.thruster;
+          if (G.t - (Hh.lastPress || -9) < 0.32 && hasTrigger(p,'thruster') && cdReady(p,'charge:thruster') && p.heavy <= 0 && p.trion > TT.cost){
+            startDash(p, TT, hand, [Math.cos(p.aim), Math.sin(p.aim)], {dmg:TT.dmg*p.meleeMul}); setCd(p,'charge:thruster',TT.cd); Hh.hold = 9; pop(p.x, p.y-44, 'スラスター', p.color, 16);
+          }
+          Hh.lastPress = G.t;
+        }
+        if (held && Hh.hold >= 0.15 && Hh.hold < 9) deployShield(p, hand, 'raygust');
+        if (rel){ if (Hh.hold < 0.15 && cdReady(p,key)) doMelee(p,T,hand); Hh.hold = 0; }
+      } else if (ca){
+        if (pr && cdReady(p,key)) doMelee(p,T,hand);
+        if (held && Hh.hold >= ca.time && cdReady(p,'charge:'+tid)) p.chargeLabel = ca.name;
+        if (rel){ if (Hh.hold >= ca.time && cdReady(p,'charge:'+tid) && p.trion > ca.cost) doChargeAttack(p, hand, T, ca); Hh.hold = 0; }
+      } else {
+        if ((pr || (held && (T.auto || Hh.hold > 0.25))) && cdReady(p,key)) doMelee(p,T,hand);
+        if (rel) Hh.hold = 0;
+      }
+      break; }
+    case 'bullet': {
+      const shooter = p.char.style === 'shooter' && !T.noSplit;
+      if (shooter){
+        if (held){ Hh.charge += dt; p.chargingCube = true; p.cubeFrac = Math.min(1, Hh.charge/0.5); }
+        if (rel){ if (Hh.charge >= 0.05 && cdReady(p,key) && p.trion > T.cost) fireVolley(p, T, hand, Math.min(Hh.charge, 0.5)); Hh.charge = 0; }
+      } else if ((pr || held) && cdReady(p,key) && p.trion > T.cost) fireGun(p, T, hand);
+      break; }
+    case 'sniper': {
+      if (held && cdReady(p,key)){
+        const e = enemyOf(p); if (p.lock && hasLOS(p,e)) Hh.charge += dt*(p.moving ? 0.45 : 1);
+        p.charging = true; p.chargeHand = hand; p.chargeFrac = Math.min(1, Hh.charge/T.charge);
+        if (Hh.charge >= T.charge + 1.6){ fireSniper(p, T, hand); Hh.charge = 0; }
+      }
+      if (rel){ if (Hh.charge >= T.charge && cdReady(p,key)) fireSniper(p, T, hand); Hh.charge = 0; }
+      break; }
+    case 'shield': if (held) deployShield(p, hand, 'shield'); break;
+    case 'dash': if (pr && cdReady(p,key) && p.heavy <= 0 && p.trion > T.cost) startDash(p, T, hand, inputDir(p), null); break;
+    case 'blink': if (pr && cdReady(p,key) && p.heavy <= 0 && p.trion > T.cost) doBlink(p, T, hand); break;
+    case 'thruster': if (pr && cdReady(p,key) && p.heavy <= 0 && p.trion > T.cost){ const atk = raygustActive(p) ? {dmg:T.dmg*p.meleeMul} : null; startDash(p, T, hand, [Math.cos(p.aim), Math.sin(p.aim)], atk); } break;
+    case 'toggle': if (pr){ if (tid === 'bagworm') p.bagworm = !p.bagworm; else if (tid === 'chameleon') p.chameleon = !p.chameleon; sfx('ui'); } break;
+    case 'place': if (pr && cdReady(p,key) && p.trion > T.cost){ if (tid === 'spider') placeWire(p, T, hand); else placeWall(p, T, hand); } break;
+  }
+}
+function updatePlayer(p,dt){
+  if (p.bailed){ p.bailT += dt; return; }
+  const e = enemyOf(p); p.px = p.x; p.py = p.y;
+  for (const k in p.cd) if (p.cd[k] > 0) p.cd[k] -= dt;
+  p.stun = Math.max(0, p.stun-dt); p.heavy = Math.max(0, p.heavy-dt); p.marked = Math.max(0, p.marked-dt); p.wireCd = Math.max(0, p.wireCd-dt);
+  if (p.leak > 0){ p.leak -= dt; spend(p, 1.2*dt); if (Math.random() < dt*10) B.fx.push({type:'cube', x:p.x + rnd(-8,8), y:p.y + rnd(-8,8), vx:rnd(-20,20), vy:rnd(-60,-20), t:0, dur:0.8, color:'#ffffff'}); }
+  if (p.chameleon) spend(p, TRIGGERS.chameleon.drain*dt);
+  if (p.bagworm) spend(p, 0.35*dt);
+  if (p.shield.broken > 0) p.shield.broken -= dt;
+  p.lock = canLock(p, e); if (p.lock) p.aim = Math.atan2(e.y-p.y, e.x-p.x);
+  p.charging = false; p.chargingCube = false; p.chargeLabel = ''; p.shieldCount = 0; p.shieldActive = false; p.shieldMode = '';
+  if (p.input.swMainP) cycleHand(p,'main'); if (p.input.swSubP) cycleHand(p,'sub');
+  updateHand(p,'main',dt); updateHand(p,'sub',dt);
+  let mx = 0, my = 0;
+  if (p.dash.t > 0){
+    p.dash.t -= dt; mx = p.dash.vx*dt; my = p.dash.vy*dt; p.moving = true;
+    if (p.dash.attack && !p.dash.hitDone && !e.bailed && dist(p.x,p.y,e.x,e.y) < p.r+e.r+16){ p.dash.hitDone = true; applyHit(e, p.dash.attack.dmg, p.x, p.y, 'melee', p, {shieldMul:2, knock:50}); B.fx.push({type:'slash', x:p.x, y:p.y, ang:p.aim, range:p.r+60, half:0.9, t:0, dur:0.2, color:p.color, w:4}); }
+  } else if (p.stun <= 0){
+    let dx = p.input.dx, dy = p.input.dy; const l = Math.hypot(dx,dy); if (l > 1){ dx /= l; dy /= l; }
+    const sp = p.speed * (p.heavy > 0 ? 0.3 : 1) * (p.charging ? 0.5 : 1) * (p.shieldActive ? 0.85 : 1) * (p.chargingCube ? 0.8 : 1);
+    mx = dx*sp*dt; my = dy*sp*dt; p.moving = l > 0.2;
+  } else p.moving = false;
+  moveEntity(p, mx, my); p.vx = (p.x-p.px)/dt; p.vy = (p.y-p.py)/dt;
+  if (!p.shieldActive){ p.shield.idle += dt; if (p.shield.idle > 1.0 && p.shield.broken <= 0) p.shield.hp = p.shield.max; } else p.shield.idle = 0;
+  if (p.trion <= 0){ p.trion = 0; bailOut(p, 'トリオン切れ'); }
+}
+function explode(b){
+  const bl = b.blast; B.fx.push({type:'boom', x:b.x, y:b.y, r:bl.r, t:0, dur:0.45, color:b.color}); sfx('boom'); B.shake = Math.max(B.shake, 6); const me = B.players[b.owner];
+  for (const t of B.players){ if (t.id === b.owner || t.bailed) continue; const d = dist(b.x,b.y,t.x,t.y); if (d < bl.r + t.r){ const fall = 1 - 0.5*clamp((d-t.r)/bl.r, 0, 1); applyHit(t, bl.dmg*fall, b.x, b.y, 'explosion', me, {shieldMul:1.5, knock:22}); } }
+  for (const w of B.walls){ const nx = clamp(b.x,w.x,w.x+w.w), ny = clamp(b.y,w.y,w.y+w.h); if (dist(b.x,b.y,nx,ny) < bl.r) w.hp -= bl.dmg; }
+  for (let i=B.wires.length-1;i>=0;i--){ const w = B.wires[i]; if (segCircleDist(w.x1,w.y1,w.x2,w.y2,b.x,b.y) < bl.r) B.wires.splice(i,1); }
+}
+function updateBullets(dt){
+  for (let i=B.bullets.length-1;i>=0;i--){
+    const b = B.bullets[i]; b.t += dt; b.life -= dt; let dead = false;
+    const steps = Math.max(1, Math.ceil(b.speed*dt/10)); const sdt = dt/steps;
+    for (let s=0; s<steps && !dead; s++){
+      if (b.mode === 'curve'){ b.s += b.speed*sdt; const c = curvePos(b.curve, b.s); b.vx = c.tx*b.speed; b.vy = c.ty*b.speed; b.x = c.x; b.y = c.y;
+        if (c.end){ if (b.blast){ explode(b); dead = true; break; } b.mode = b.after; b.life = Math.min(b.life, 1.0); } }
+      else {
+        if (b.mode === 'homing'){ const tgt = B.players[1-b.owner], me = B.players[b.owner]; if (!tgt.bailed && canLock(me, tgt)){ const want = Math.atan2(tgt.y-b.y, tgt.x-b.x), cur = Math.atan2(b.vy, b.vx); const na = cur + clamp(angDiff(cur,want), -b.turn*sdt, b.turn*sdt); b.vx = Math.cos(na)*b.speed; b.vy = Math.sin(na)*b.speed; } }
+        b.x += b.vx*sdt; b.y += b.vy*sdt;
+      }
+      if (b.x < -30 || b.x > W+30 || b.y < -30 || b.y > H+30){ dead = true; break; }
+      for (const r of B.map.rectsObj) if (circleRect(b.x,b.y,b.r,r.x,r.y,r.w,r.h)){ if (b.blast) explode(b); else hitFx(b.x,b.y,b.color,3); dead = true; break; }
+      if (dead) break;
+      for (const w of B.walls) if (circleRect(b.x,b.y,b.r,w.x,w.y,w.w,w.h)){ w.hp -= b.dmg + (b.blast ? b.blast.dmg : 0); if (b.blast) explode(b); else hitFx(b.x,b.y,b.color,3); dead = true; break; }
+      if (dead) break;
+      const tgt = B.players[1-b.owner];
+      if (B.phase === 'fight' && !tgt.bailed && dist(b.x,b.y,tgt.x,tgt.y) < b.r + tgt.r){
+        const me = B.players[b.owner];
+        if (b.heavy){ if (b.ignoreShield || !shieldBlocks(tgt,b.x,b.y)){ tgt.heavy = Math.max(tgt.heavy, b.heavy); tgt.dash.t = 0; pop(tgt.x, tgt.y-32, '鉛弾 命中', '#d0d0d0', 16); sfx('hit'); } else { applyHit(tgt, 1, b.x, b.y, 'bullet', me, {}); } }
+        else if (b.mark){ tgt.marked = b.mark; pop(tgt.x, tgt.y-32, 'マーキング', '#ffffff', 16); sfx('hit'); }
+        else applyHit(tgt, b.dmg, b.x, b.y, b.sniper ? 'sniper' : 'bullet', me, {shieldMul:b.shieldMul, breakThrough:b.breakThrough, knock:b.knock});
+        if (b.blast) explode(b); else hitFx(b.x,b.y,b.color,4); dead = true; break;
+      }
+    }
+    if (!dead && b.life <= 0){ if (b.blast) explode(b); dead = true; }
+    b.trail.push({x:b.x, y:b.y}); if (b.trail.length > (b.sniper ? 14 : 7)) b.trail.shift();
+    if (dead) B.bullets.splice(i,1);
+  }
+}
+function updateField(dt){
+  for (let i=B.walls.length-1;i>=0;i--){ const w = B.walls[i]; w.life -= dt; if (w.hp <= 0 || w.life <= 0){ hitFx(w.x+w.w/2, w.y+w.h/2, w.color, 8); B.walls.splice(i,1); } }
+  for (let i=B.wires.length-1;i>=0;i--){ const w = B.wires[i]; w.life -= dt; if (w.life <= 0){ B.wires.splice(i,1); continue; }
+    const e = B.players[1-w.owner]; if (!e.bailed && e.wireCd <= 0 && segCircleDist(w.x1,w.y1,w.x2,w.y2,e.x,e.y) <= e.r+2){ e.stun = 0.65; e.wireCd = 1.2; e.dash.t = 0; pop(e.x, e.y-32, 'スパイダー 拘束', w.color, 16); hitFx(e.x,e.y,w.color,6); sfx('hit'); B.wires.splice(i,1); } }
+  for (let i=B.fx.length-1;i>=0;i--){ const f = B.fx[i]; f.t += dt; if (f.vx !== undefined){ f.x += f.vx*dt; f.y += f.vy*dt; f.vx *= 0.9; f.vy *= 0.9; } if (f.t >= f.dur) B.fx.splice(i,1); }
+  for (let i=B.pops.length-1;i>=0;i--){ const f = B.pops[i]; f.t += dt; f.y -= 28*dt; if (f.t >= f.dur) B.pops.splice(i,1); }
+  if (B.banner){ B.banner.t += dt; if (B.banner.t > B.banner.dur) B.banner = null; }
+  B.shake = Math.max(0, B.shake - dt*18);
+}
+function timeUp(){
+  const [a,b] = B.players; let w = -1;
+  if (a.body !== b.body) w = a.body > b.body ? 0 : 1; else if (a.trion/a.trionMax !== b.trion/b.trionMax) w = a.trion/a.trionMax > b.trion/b.trionMax ? 0 : 1;
+  B.phase = 'bailout'; B.phaseT = 2.8;
+  if (w >= 0){ B.score[w]++; banner('時間切れ', B.players[w].char.name + ' の判定勝ち', 2.6); } else banner('時間切れ', '引き分け', 2.6);
+  sfx('bail');
+}
+function updateBattle(dt){
+  if (G.pause) return;
+  const p1 = B.players[0], p2 = B.players[1];
+  p1.input = G.mode === 'demo' ? aiInput(p1, dt) : IN[0]; p2.input = G.mode !== 'vs' ? aiInput(p2, dt) : IN[1];
+  if (B.phase === 'countdown'){
+    B.phaseT -= dt; B.players.forEach(p => { p.input = emptyInput(); });
+    if (B.phaseT <= 0){ B.phase = 'fight'; banner('開戦', 'ROUND ' + B.round, 1.2); sfx('start'); }
+    updateField(dt); return;
+  }
+  if (B.phase === 'fight'){
+    B.time -= dt; updatePlayer(p1, dt); updatePlayer(p2, dt); updateBullets(dt); updateField(dt);
+    if (B.phase === 'fight' && B.time <= 0){ B.time = 0; timeUp(); }
+    return;
+  }
+  if (B.phase === 'bailout'){
+    B.phaseT -= dt; B.players.forEach(p => { if (p.bailed) p.bailT += dt; }); updateBullets(dt); updateField(dt);
+    if (B.phaseT <= 0){
+      if (B.score[0] >= G.target || B.score[1] >= G.target){ B.winner = B.score[0] > B.score[1] ? 0 : (B.score[1] > B.score[0] ? 1 : -1); B.phase = 'over'; G.screen = 'result'; sfx('ready'); }
+      else { B.round++; resetRound(); }
+    }
+    return;
+  }
+}
+
+// =====================================================================
+//  CPU AI
+// =====================================================================
+function aiInit(p,cfg){ p.ai = {cfg, t:0, next:0, swT:0, strafe:1, strafeT:0, dodgeT:0, reactAt:-1, reactKind:'', held:{main:false,sub:false}, holdUntil:{main:0,sub:0}, press:{main:false,sub:false}, prev:{main:false,sub:false}, chargeRel:{main:false,sub:false}, rest:{main:0,sub:0}, wantMain:0, wantSub:0, aiming:false, bagDone:false, leadT:0, escT:0, wireT:0, dashPlan:'', mx:0, my:0, dodgeNow:false}; p.aimErr = 0.03 + (1-cfg.acc)*0.2; }
+function aiReset(p){ const a = p.ai; a.t = 0; a.next = 0; a.swT = 0; a.leadT = 0; a.escT = 0; a.wireT = 0; a.dodgeT = 0; a.strafeT = 0; a.rest = {main:0,sub:0}; a.holdUntil = {main:0,sub:0}; a.held = {main:false,sub:false}; a.press = {main:false,sub:false}; a.prev = {main:false,sub:false}; a.chargeRel = {main:false,sub:false}; a.reactAt = -1; a.bagDone = false; a.aiming = false; a.dashPlan = ''; a.mx = a.my = 0; }
+function blockedDir(p,dx,dy,len){ const x2 = p.x + dx*len, y2 = p.y + dy*len; if (x2 < p.r || x2 > W-p.r || y2 < p.r || y2 > H-p.r) return true; for (const r of allRects()){ const rr = {x:r.x-p.r, y:r.y-p.r, w:r.w+2*p.r, h:r.h+2*p.r}; if (segRect(p.x,p.y,x2,y2,rr)) return true; } return false; }
+function threatLevel(p){
+  let t = 0; const e = enemyOf(p); const d = dist(p.x,p.y,e.x,e.y);
+  for (const b of B.bullets){ if (b.owner === p.id) continue; const rx = b.x-p.x, ry = b.y-p.y; const dd = Math.hypot(rx,ry); if (dd > 460) continue;
+    const closing = -(rx*b.vx + ry*b.vy)/(dd || 1); if (closing <= 0 && b.mode !== 'homing' && b.mode !== 'curve') continue;
+    const tca = dd/Math.max(closing, 60); if (tca > 0.75) continue; const miss = Math.hypot(rx + b.vx*tca, ry + b.vy*tca);
+    if (miss < p.r + b.r + 26 || b.mode === 'homing' || b.mode === 'curve' || b.blast) t = Math.max(t, 1 + b.dmg/12 + (b.blast ? 1 : 0)); }
+  if (e.charging && e.lock && e.chargeFrac > 0.5) t = Math.max(t, 2.2);
+  if (e.chargingCube && d < 500) t = Math.max(t, 1.2);
+  const eid = activeId(e,'main'), esid = activeId(e,'sub');
+  if (((eid && TRIGGERS[eid].kind === 'melee') || (esid && TRIGGERS[esid].kind === 'melee')) && d < 130) t = Math.max(t, 1.5);
+  return t;
+}
+function meleeReach(p){ let r = 0; for (const h of ['main','sub']) for (const tid of p[h].slots){ const T = TRIGGERS[tid]; if (T.kind === 'melee') r = Math.max(r, T.range); } return r; }
+function hasKind(p,hand,kind){ return p[hand].slots.some(t => TRIGGERS[t].kind === kind); }
+function slotScore(p,tid,hand,d,los,threat,e){
+  const T = TRIGGERS[tid]; const a = p.ai; const hasMobility = hasTrigger(p,'grasshopper') || hasTrigger(p,'teleporter');
+  switch (T.kind){
+    case 'melee': if (T.id === 'raygust'){ return threat > 1.5 && d > 110 ? 8 : (d < 120 ? 6 : 2); } return d < 130 ? 10 : (d < 320 && hasMobility ? 6 : 3);
+    case 'bullet': if (T.heavy) return (a.leadT <= 0 && d > 150 && d < 420 && los) ? 8.5 : 0; if (T.mark) return (!e.marked && (e.bagworm || e.chameleon)) ? 9 : 0;
+      if (T.path === 'homing' || T.path === 'viperHoming') return d < 560 ? 6.5 : 3; if (T.blast) return (los && d > 200 && d < 520) ? 6.8 : 3; if (T.cat === 'composite') return (los && d > 180 && d < 520 && p.trion > 25) ? 7 : 2; return los ? (d < 520 ? 7 : 3.5) : 2;
+    case 'sniper': return (d > 300 && los) ? 9.5 : (d > 300 ? 5 : (los ? 4 : 1));
+    case 'shield': return threat > 0 && p.shield.broken <= 0 ? (hand === 'main' && p.sub.slots.includes('shield') ? 3 : 10) : 1;
+    case 'dash': return threat > 1 ? 7.5 : 1.5;
+    case 'blink': return threat > 1.5 ? 8 : (d > 400 ? 5 : 1);
+    case 'thruster': return raygustActive(p) && d > 80 && d < 250 ? 7.5 : 0.5;
+    case 'toggle': if (T.id === 'bagworm') return (!p.bagworm && !a.bagDone && (hasTrigger(e,'egret') || hasTrigger(e,'ibis') || hasTrigger(e,'lightning') || hasTrigger(e,'hound'))) ? 6 : 0; return (!p.chameleon && d > 230 && !los) ? 6.5 : 0;
+    case 'place': if (T.id === 'escudo') return (e.charging && e.chargeFrac > 0.3 && a.escT <= 0) ? 9 : 0; return (a.wireT <= 0 && d < 320 && d > 120) ? 5 : 0;
+    default: return 0;
+  }
+}
+function aiInput(p,dt){
+  const a = p.ai, cfg = a.cfg; const e = enemyOf(p); a.t += dt; a.leadT -= dt; a.escT -= dt; a.wireT -= dt; a.dodgeT -= dt;
+  const inp = emptyInput(); if (p.bailed || B.phase !== 'fight') return inp;
+  const d = dist(p.x,p.y,e.x,e.y), los = hasLOS(p,e); const threat = threatLevel(p);
+  if (threat > 0 && a.reactAt < 0 && a.dodgeT <= 0 && Math.random() < cfg.dodge && !(a.isMelee && a.dashPlan && threat < 2)){ a.reactAt = a.t + cfg.react; a.reactKind = threat >= 2 ? 'big' : 'small'; }
+  if (a.reactAt >= 0 && a.t >= a.reactAt){ a.reactAt = -1; a.dodgeT = 0.9; a.dodgeNow = true; }
+  if (a.t >= a.next){
+    a.next = a.t + cfg.think;
+    const pick = hand => { const s = p[hand].slots; let best = p[hand].idx, bs = -1; s.forEach((tid,i) => { let sc = slotScore(p,tid,hand,d,los,threat,e); if (i === p[hand].idx) sc += 0.6; if (sc > bs){ bs = sc; best = i; } }); return best; };
+    a.wantMain = pick('main'); a.wantSub = pick('sub');
+    // ---- melee closing plan: pair a dash hand with a melee hand
+    const reach = meleeReach(p); const isMelee = reach > 0 && (p.char.pos === 'アタッカー' || (p.char.pos === 'オールラウンダー' && d < 220)); a.isMelee = isMelee; a.reach = reach;
+    a.dashPlan = '';
+    if (isMelee && d > reach + e.r + 10 && d < 340 && threat < 2){
+      const dashIdx = hand => p[hand].slots.findIndex(t => TRIGGERS[t].kind === 'dash' || TRIGGERS[t].kind === 'blink');
+      const meleeIdx = hand => { let bi = -1, bd = 0; p[hand].slots.forEach((t,i) => { const T = TRIGGERS[t]; if (T.kind === 'melee' && T.dmg > bd){ bd = T.dmg; bi = i; } }); return bi; };
+      const dm = dashIdx('main'), ds = dashIdx('sub'), mm = meleeIdx('main'), ms = meleeIdx('sub');
+      if (ds >= 0 && mm >= 0){ a.dashPlan = 'sub'; a.wantSub = ds; a.wantMain = mm; }
+      else if (dm >= 0 && ms >= 0){ a.dashPlan = 'main'; a.wantMain = dm; a.wantSub = ms; }
+      else if (dm >= 0){ a.dashPlan = 'main'; a.wantMain = dm; }
+      else if (ds >= 0){ a.dashPlan = 'sub'; a.wantSub = ds; }
+    } else if (isMelee && d <= reach + e.r + 10){
+      const mi = hand => { let bi = -1, bd = 0; p[hand].slots.forEach((t,i) => { const T = TRIGGERS[t]; if (T.kind === 'melee' && T.dmg > bd){ bd = T.dmg; bi = i; } }); return bi; };
+      const mm = mi('main'), ms = mi('sub'); if (mm >= 0) a.wantMain = mm; if (ms >= 0 && threat < 1) a.wantSub = ms;
+    }
+    // ---- movement
+    const mid = activeId(p,'main'), sid = activeId(p,'sub'); const mT = mid ? TRIGGERS[mid] : null; const sT = sid ? TRIGGERS[sid] : null;
+    let want = 240; if (isMelee) want = 30; else if (mT){ if (mT.kind === 'sniper') want = 430; else if (mT.kind === 'bullet') want = p.char.style === 'shooter' ? 280 : 230; else if (mT.kind === 'melee') want = 30; }
+    if (!isMelee && sT && sT.kind === 'melee' && d < 90) want = 30;
+    if (p.trion < p.trionMax*0.2 && !isMelee) want = 120;
+    let ax = e.x-p.x, ay = e.y-p.y; const n = Math.hypot(ax,ay) || 1; ax /= n; ay /= n;
+    let mx = 0, my = 0; if (d > want + 40){ mx = ax; my = ay; } else if (d < want - 40){ mx = -ax*0.6; my = -ay*0.6; }
+    a.strafeT -= cfg.think; if (a.strafeT <= 0){ a.strafe *= -1; a.strafeT = isMelee ? rnd(0.3,0.6) : rnd(0.5,1.4); }
+    const str = isMelee ? (d < 70 ? 0.35 : (a.dashPlan ? 0.55 : 0.3)) : 0.85; mx += -ay*a.strafe*str; my += ax*a.strafe*str;
+    if (!los && !isMelee && want > 100){ mx += ax*0.6; my += ay*0.6; }
+    const l = Math.hypot(mx,my) || 1; mx /= l; my /= l;
+    if (blockedDir(p,mx,my,46)){ let found = false; for (const rot of [0.9,-0.9,1.8,-1.8,2.6,-2.6]){ const c = Math.cos(rot), s = Math.sin(rot); const nx = mx*c - my*s, ny = mx*s + my*c; if (!blockedDir(p,nx,ny,46)){ mx = nx; my = ny; found = true; break; } } if (!found){ mx = 0; my = 0; } }
+    a.mx = mx; a.my = my; a.aiming = false;
+    // ---- per-hand actions on the currently active triggers
+    for (const hand of ['main','sub']){
+      const tid = activeId(p,hand); if (!tid) continue; const T = TRIGGERS[tid]; const other = hand === 'main' ? 'sub' : 'main';
+      const sc = slotScore(p,tid,hand,d,los,threat,e);
+      switch (T.kind){
+        case 'melee': {
+          const inReach = d - e.r <= T.range + 6 && los; const ca = chargeAttackFor(p, tid);
+          if (a.chargeRel[hand]) break;
+          if (inReach){ if (T.auto){ a.held[hand] = true; a.holdUntil[hand] = a.t + 0.3; } else if (T.shieldMode){ if (!a.held[hand]) a.press[hand] = true; } else a.press[hand] = true; }
+          else if (ca && d < ca.range + e.r - 10 && cdReady(p,'charge:'+tid) && p.trion > ca.cost + 10 && Math.random() < 0.5*cfg.aggr){ a.held[hand] = true; a.holdUntil[hand] = a.t + ca.time + 0.1; a.chargeRel[hand] = true; }
+          else if (T.shieldMode && threat > 0.8){ a.held[hand] = true; a.holdUntil[hand] = a.t + 0.5; }
+          else a.held[hand] = false;
+          break; }
+        case 'bullet': {
+          if (T.heavy){ if (los && d < 420 && a.leadT <= 0){ a.press[hand] = true; a.leadT = 4; } }
+          else if (T.mark){ if (sc >= 6 && los) a.press[hand] = true; }
+          else if (p.char.style === 'shooter' && !T.noSplit){ if (los && d < 560 && !a.held[hand] && a.t >= a.rest[hand] && !(a.held[other] && TRIGGERS[activeId(p,other)||'shield'].kind === 'bullet')){ a.held[hand] = true; a.holdUntil[hand] = a.t + rnd(0.25,0.5); a.rest[hand] = a.holdUntil[hand] + rnd(0.15,0.35); } }
+          else { a.held[hand] = los && d < 520 && Math.random() < 0.92; a.holdUntil[hand] = a.t + cfg.think + 0.02; }
+          break; }
+        case 'sniper': {
+          if (los && d > 120 && p.lock){ a.held[hand] = true; a.holdUntil[hand] = a.t + 5; a.aiming = true; if (p[hand].charge >= T.charge + 0.05){ a.held[hand] = false; a.aiming = false; } }
+          else { a.held[hand] = false; }
+          break; }
+        case 'shield': if (threat > 0 && p.shield.broken <= 0 && !(a.dashPlan && threat < 2)){ a.held[hand] = true; a.holdUntil[hand] = a.t + 0.45 + (threat > 2 ? 0.4 : 0); } break;
+        case 'dash': if ((a.dashPlan === hand && los && d > reach + e.r + 20 && d < T.distance + reach + e.r + 30) || (threat > 1 && Math.random() < 0.3)) a.press[hand] = true; break;
+        case 'blink': if ((a.dashPlan === hand && los && d > 180 && d < T.distance + reach + e.r + 20) || (d > 420 && los && Math.random() < 0.3) || (threat > 1.5 && Math.random() < 0.4)) a.press[hand] = true; break;
+        case 'thruster': if (raygustActive(p) && d > 80 && d < 250 && los && Math.random() < 0.6*cfg.aggr) a.press[hand] = true; break;
+        case 'toggle': if (tid === 'bagworm'){ if (!p.bagworm && !a.bagDone && sc >= 6){ a.press[hand] = true; a.bagDone = true; } } else { if (!p.chameleon && d > 230 && Math.random() < 0.5) a.press[hand] = true; else if (p.chameleon && d < 110) a.press[hand] = true; } break;
+        case 'place': if (sc >= 5){ a.press[hand] = true; if (tid === 'escudo') a.escT = 3; else a.wireT = 2.5; } break;
+      }
+    }
+  }
+  // ---- reaction to a threat (shield or dodge)
+  if (a.dodgeNow){ a.dodgeNow = false; let done = false;
+    for (const hand of ['sub','main']){ const tid = activeId(p,hand); if (!tid) continue; const T = TRIGGERS[tid];
+      if (T.kind === 'shield' && p.shield.broken <= 0){ a.held[hand] = true; a.holdUntil[hand] = a.t + (a.reactKind === 'big' ? 0.9 : 0.5); done = true; break; }
+      if (T.kind === 'melee' && T.shieldMode){ a.held[hand] = true; a.holdUntil[hand] = a.t + 0.7; done = true; break; }
+      if (T.kind === 'dash' || T.kind === 'blink'){ a.press[hand] = true; const s = Math.random() < 0.5 ? 1 : -1; const nx = -a.my*s, ny = a.mx*s; a.mx = nx; a.my = ny; done = true; break; } }
+    if (!done){ for (const hand of ['sub','main']){ const si = p[hand].slots.indexOf('shield'); if (si >= 0 && p.shield.broken <= 0){ if (hand === 'sub') a.wantSub = si; else a.wantMain = si; break; } } }
+  }
+  // ---- slot switching (one step per press)
+  if (a.wantMain !== p.main.idx && a.t >= a.swT && !a.held.main){ inp.swMainP = true; a.swT = a.t + cfg.sw; }
+  else if (a.wantSub !== p.sub.idx && a.t >= a.swT && !a.held.sub){ inp.swSubP = true; a.swT = a.t + cfg.sw; }
+  // ---- melee fast path: strike the moment the enemy is in reach
+  for (const hand of ['main','sub']){ const tid = activeId(p,hand); if (!tid) continue; const T = TRIGGERS[tid]; if (T.kind !== 'melee' || a.chargeRel[hand]) continue; if (d - e.r <= T.range + 6 && los){ if (T.auto){ a.held[hand] = true; a.holdUntil[hand] = a.t + 0.3; } else if (!T.shieldMode && cdReady(p, hand+':'+tid) && !a.prev[hand]) a.press[hand] = true; } }
+  // ---- hold timers
+  for (const hand of ['main','sub']) if (a.held[hand] && a.t >= a.holdUntil[hand]){ a.held[hand] = false; a.chargeRel[hand] = false; }
+  // ---- movement (snipers stop while aiming)
+  if (a.aiming && p.charging){ inp.dx = 0; inp.dy = 0; } else { inp.dx = a.mx; inp.dy = a.my; }
+  // ---- buttons with edge detection
+  for (const hand of ['main','sub']){ let v = a.held[hand] || a.press[hand]; if (a.press[hand] && a.prev[hand] && !a.held[hand]) v = false; inp[hand] = v; inp[hand+'P'] = v && !a.prev[hand]; inp[hand+'R'] = !v && a.prev[hand]; a.prev[hand] = v; a.press[hand] = false; }
+  return inp;
+}
+
+// =====================================================================
+//  RENDERING
+// =====================================================================
+const F_JP = "'Zen Kaku Gothic New','Hiragino Sans','Noto Sans JP',sans-serif";
+const F_NUM = "'Rajdhani','Zen Kaku Gothic New',sans-serif";
+function font(size, weight, fam){ ctx.font = (weight || 500) + ' ' + size + 'px ' + (fam || F_JP); }
+function text(str, x, y, o){ o = o || {}; font(o.size || 14, o.weight || 500, o.num ? F_NUM : F_JP); ctx.textAlign = o.align || 'left'; ctx.textBaseline = o.base || 'middle'; ctx.fillStyle = o.color || '#dbe6f5'; if (o.alpha !== undefined){ ctx.save(); ctx.globalAlpha = o.alpha; } ctx.fillText(str, x, y); if (o.alpha !== undefined) ctx.restore(); }
+function rrect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function hexPath(x,y,r,rot){ ctx.beginPath(); for (let i=0;i<6;i++){ const a = rot + i*Math.PI/3; const px = x + Math.cos(a)*r, py = y + Math.sin(a)*r; if (i === 0) ctx.moveTo(px,py); else ctx.lineTo(px,py); } ctx.closePath(); }
+function hexToRgba(hex,a){ const n = parseInt(hex.slice(1),16); return 'rgba(' + (n>>16) + ',' + ((n>>8)&255) + ',' + (n&255) + ',' + a + ')'; }
+
+let bgCanvas = null;
+function buildBackground(){
+  bgCanvas = document.createElement('canvas'); bgCanvas.width = W; bgCanvas.height = H; const c = bgCanvas.getContext('2d');
+  c.fillStyle = '#0a0f1c'; c.fillRect(0,0,W,H);
+  // streets grid
+  c.strokeStyle = 'rgba(40,56,90,0.35)'; c.lineWidth = 1; for (let x=0;x<=W;x+=80){ c.beginPath(); c.moveTo(x,0); c.lineTo(x,H); c.stroke(); } for (let y=0;y<=H;y+=80){ c.beginPath(); c.moveTo(0,y); c.lineTo(W,y); c.stroke(); }
+  c.strokeStyle = 'rgba(70,90,140,0.35)'; c.setLineDash([14,18]); c.lineWidth = 2; c.beginPath(); c.moveTo(0,H/2); c.lineTo(W,H/2); c.moveTo(W/2,0); c.lineTo(W/2,H); c.stroke(); c.setLineDash([]);
+  // buildings
+  for (const r of B.map.rectsObj){
+    c.fillStyle = 'rgba(0,0,0,0.45)'; c.fillRect(r.x+6, r.y+8, r.w, r.h);
+    c.fillStyle = '#141d31'; c.fillRect(r.x, r.y, r.w, r.h);
+    c.fillStyle = '#1b2742'; c.fillRect(r.x+4, r.y+4, r.w-8, r.h-8);
+    c.strokeStyle = '#2f4268'; c.lineWidth = 1.5; c.strokeRect(r.x+0.5, r.y+0.5, r.w-1, r.h-1);
+    c.fillStyle = 'rgba(138,245,210,0.18)'; for (let y=r.y+12; y<r.y+r.h-8; y+=16) for (let x=r.x+10; x<r.x+r.w-6; x+=16) if (((x*7+y*13)%5) < 2) c.fillRect(x, y, 5, 7);
+  }
+  // vignette
+  const g = c.createRadialGradient(W/2,H/2,H*0.35,W/2,H/2,H*0.95); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.55)'); c.fillStyle = g; c.fillRect(0,0,W,H);
+  // map name
+  c.fillStyle = 'rgba(130,150,190,0.5)'; c.font = '600 14px ' + F_NUM; c.textAlign = 'center'; c.textBaseline = 'bottom'; c.fillText('AREA: ' + B.map.name, W/2, H-8);
+}
+
+function drawPlayer(p){
+  const t = G.t; ctx.save();
+  if (p.bailed){ const k = Math.min(1, p.bailT/1.1); ctx.globalAlpha = 1-k; ctx.strokeStyle = p.color; ctx.lineWidth = 2; hexPath(p.x, p.y - k*60, p.r*(1+k*1.5), t); ctx.stroke(); ctx.restore(); return; }
+  let alpha = 1; if (p.chameleon) alpha = 0.13 + 0.05*Math.sin(t*9);
+  ctx.globalAlpha = alpha;
+  if (p.bagworm){ ctx.fillStyle = 'rgba(8,12,22,0.92)'; ctx.beginPath(); ctx.arc(p.x,p.y,p.r+9,0,TAU); ctx.fill(); ctx.strokeStyle = 'rgba(130,150,190,0.55)'; ctx.setLineDash([4,5]); ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]); }
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.ellipse(p.x+3, p.y+6, p.r, p.r*0.7, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = p.heavy > 0 ? '#2a2f3a' : '#0d1424'; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,TAU); ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = p.color; ctx.stroke();
+  ctx.lineWidth = 1.5; ctx.strokeStyle = hexToRgba(p.color, 0.7); hexPath(p.x,p.y,p.r*0.55,t*0.8); ctx.stroke();
+  ctx.lineWidth = 3; ctx.strokeStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(p.x + Math.cos(p.aim)*p.r*0.5, p.y + Math.sin(p.aim)*p.r*0.5); ctx.lineTo(p.x + Math.cos(p.aim)*(p.r+5), p.y + Math.sin(p.aim)*(p.r+5)); ctx.stroke();
+  if (p.heavy > 0){ ctx.strokeStyle = '#aab4c4'; ctx.lineWidth = 3; ctx.setLineDash([3,3]); ctx.beginPath(); ctx.arc(p.x,p.y,p.r+5,0,TAU); ctx.stroke(); ctx.setLineDash([]); text('重', p.x, p.y, {size:16, weight:900, align:'center', color:'#aab4c4'}); }
+  if (p.stun > 0){ ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; for (let i=0;i<3;i++){ const a = t*20 + i*2.1; ctx.beginPath(); ctx.moveTo(p.x + Math.cos(a)*(p.r+4), p.y + Math.sin(a)*(p.r+4)); ctx.lineTo(p.x + Math.cos(a+0.4)*(p.r+12), p.y + Math.sin(a+0.4)*(p.r+12)); ctx.stroke(); } }
+  if (p.marked > 0){ ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(p.x,p.y,p.r+16+Math.sin(t*6)*2,0,TAU); ctx.stroke(); }
+  // name
+  ctx.globalAlpha = Math.max(alpha, 0.5);
+  text(p.char.name, p.x, p.y - p.r - 13, {size:13, weight:700, align:'center', color:p.color});
+  ctx.globalAlpha = alpha;
+  // shield
+  if (p.shieldActive){
+    const R = p.r + 13; const ray = p.shieldMode === 'raygust'; ctx.globalAlpha = 0.95;
+    ctx.strokeStyle = ray ? '#ffffff' : p.color; ctx.lineWidth = ray ? 7 : 4; ctx.beginPath(); ctx.arc(p.x,p.y,R,p.shieldAng-p.shieldHalf,p.shieldAng+p.shieldHalf); ctx.stroke();
+    ctx.fillStyle = hexToRgba(p.color, 0.12); ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.arc(p.x,p.y,R,p.shieldAng-p.shieldHalf,p.shieldAng+p.shieldHalf); ctx.closePath(); ctx.fill();
+    const frac = clamp(p.shield.hp/p.shield.max, 0, 1); ctx.lineWidth = 2; ctx.globalAlpha = 0.6; ctx.strokeStyle = '#ffffff'; ctx.beginPath(); ctx.arc(p.x,p.y,R+6,p.shieldAng-p.shieldHalf*frac,p.shieldAng+p.shieldHalf*frac); ctx.stroke();
+  }
+  // sniper laser
+  if (p.charging){
+    const e = enemyOf(p); const full = p.chargeFrac >= 1; ctx.globalAlpha = 0.35 + 0.55*p.chargeFrac; ctx.strokeStyle = full ? '#ff5252' : '#ff9d9d'; ctx.lineWidth = full ? 2 : 1.2;
+    const ex = p.lock && hasLOS(p,e) ? e.x : p.x + Math.cos(p.aim)*1500, ey = p.lock && hasLOS(p,e) ? e.y : p.y + Math.sin(p.aim)*1500;
+    ctx.beginPath(); ctx.moveTo(p.x + Math.cos(p.aim)*(p.r+6), p.y + Math.sin(p.aim)*(p.r+6)); ctx.lineTo(ex,ey); ctx.stroke();
+    if (p.lock){ ctx.beginPath(); ctx.arc(ex,ey,10+6*(1-p.chargeFrac),0,TAU); ctx.stroke(); }
+    ctx.globalAlpha = 0.9; ctx.strokeStyle = full ? '#ff5252' : p.color; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p.x,p.y,p.r+22,-Math.PI/2,-Math.PI/2 + TAU*p.chargeFrac); ctx.stroke();
+  }
+  if (p.chargingCube){ const cx = p.x + Math.cos(p.aim+0.6)*(p.r+10), cy = p.y + Math.sin(p.aim+0.6)*(p.r+10); const s = 5 + 9*p.cubeFrac; ctx.save(); ctx.translate(cx,cy); ctx.rotate(t*3); ctx.fillStyle = hexToRgba(p.color, 0.9); ctx.shadowColor = p.color; ctx.shadowBlur = 12; ctx.fillRect(-s/2,-s/2,s,s); ctx.restore(); }
+  if (p.chargeLabel){ ctx.globalAlpha = 0.8 + 0.2*Math.sin(t*20); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x,p.y,p.r+20,p.aim-0.6,p.aim+0.6); ctx.stroke(); text(p.chargeLabel + ' 待機', p.x, p.y + p.r + 16, {size:12, weight:700, align:'center', color:'#ffffff'}); }
+  ctx.restore();
+}
+function drawBullet(b){
+  ctx.save();
+  if (b.trail.length > 1){ ctx.strokeStyle = b.color; ctx.lineWidth = b.sniper ? 3 : Math.max(1.5, b.r*0.7); ctx.globalAlpha = b.sniper ? 0.6 : 0.3; ctx.beginPath(); ctx.moveTo(b.trail[0].x,b.trail[0].y); for (let i=1;i<b.trail.length;i++) ctx.lineTo(b.trail[i].x,b.trail[i].y); ctx.lineTo(b.x,b.y); ctx.stroke(); ctx.globalAlpha = 1; }
+  ctx.translate(b.x,b.y); ctx.shadowColor = b.color; ctx.shadowBlur = 10; ctx.fillStyle = b.heavy ? '#b8c0cc' : '#ffffff'; ctx.strokeStyle = b.color; ctx.lineWidth = 2;
+  const a = Math.atan2(b.vy,b.vx);
+  if (b.T.path === 'homing'){ ctx.rotate(a); ctx.beginPath(); ctx.moveTo(b.r+3,0); ctx.lineTo(0,b.r); ctx.lineTo(-b.r,0); ctx.lineTo(0,-b.r); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  else if (b.T.path === 'viper' || b.T.path === 'viperHoming'){ ctx.rotate(a); ctx.beginPath(); ctx.moveTo(b.r+4,0); ctx.lineTo(-b.r,b.r*0.9); ctx.lineTo(-b.r*0.4,0); ctx.lineTo(-b.r,-b.r*0.9); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  else if (b.blast){ ctx.beginPath(); ctx.arc(0,0,b.r,0,TAU); ctx.fill(); ctx.stroke(); ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(0,0,b.r+5+Math.sin(G.t*25)*2,0,TAU); ctx.stroke(); }
+  else if (b.sniper){ ctx.rotate(a); ctx.fillStyle = '#ffffff'; rrect(-b.r*2.5,-b.r*0.5,b.r*5,b.r,b.r*0.5); ctx.fill(); ctx.stroke(); }
+  else if (b.mark){ ctx.rotate(G.t*6); ctx.beginPath(); for (let i=0;i<10;i++){ const rr = i%2 ? b.r*0.5 : b.r+2; const aa = i*Math.PI/5; ctx.lineTo(Math.cos(aa)*rr, Math.sin(aa)*rr); } ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  else { ctx.rotate(G.t*8 + b.owner); ctx.fillRect(-b.r,-b.r,b.r*2,b.r*2); ctx.strokeRect(-b.r,-b.r,b.r*2,b.r*2); }
+  ctx.restore();
+}
+function drawFx(f){
+  const k = clamp(f.t/f.dur, 0, 1); ctx.save();
+  switch (f.type){
+    case 'slash': { const x = f.follow ? f.follow.x : f.x, y = f.follow ? f.follow.y : f.y; ctx.globalAlpha = (1-k)*0.5; ctx.fillStyle = f.color; ctx.beginPath(); ctx.moveTo(x,y); ctx.arc(x,y,f.range,f.ang-f.half,f.ang+f.half); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1-k; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = f.w; ctx.beginPath(); ctx.arc(x,y,f.range*(0.7+0.3*k),f.ang-f.half,f.ang+f.half); ctx.stroke(); break; }
+    case 'spark': ctx.globalAlpha = 1-k; ctx.fillStyle = f.color; ctx.beginPath(); ctx.arc(f.x,f.y,2.5,0,TAU); ctx.fill(); break;
+    case 'cube': ctx.globalAlpha = 1-k; ctx.fillStyle = f.color; ctx.translate(f.x,f.y); ctx.rotate(f.t*6); ctx.fillRect(-3,-3,6,6); break;
+    case 'boom': { const r = f.r*(0.3+0.7*Math.sqrt(k)); ctx.globalAlpha = (1-k)*0.35; ctx.fillStyle = f.color; ctx.beginPath(); ctx.arc(f.x,f.y,r,0,TAU); ctx.fill(); ctx.globalAlpha = 1-k; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(f.x,f.y,r,0,TAU); ctx.stroke(); break; }
+    case 'muzzle': ctx.globalAlpha = 1-k; ctx.fillStyle = f.color; ctx.beginPath(); ctx.arc(f.x,f.y,8*(1-k)+2,0,TAU); ctx.fill(); break;
+    case 'shieldHit': { const p = f.p; ctx.globalAlpha = (1-k)*0.9; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 6*(1-k)+1; ctx.beginPath(); ctx.arc(p.x,p.y,p.r+13+8*k,p.shieldAng-p.shieldHalf,p.shieldAng+p.shieldHalf); ctx.stroke(); break; }
+    case 'shieldBreak': ctx.globalAlpha = 1-k; ctx.strokeStyle = f.color; ctx.lineWidth = 2; for (let i=0;i<9;i++){ const a = f.ang - f.half + (2*f.half)*(i/8); const r1 = 30 + 70*k, r2 = r1 + 10; ctx.beginPath(); ctx.moveTo(f.x + Math.cos(a)*r1, f.y + Math.sin(a)*r1); ctx.lineTo(f.x + Math.cos(a)*r2, f.y + Math.sin(a)*r2); ctx.stroke(); } break;
+    case 'dash': ctx.globalAlpha = (1-k)*0.8; ctx.strokeStyle = f.color; ctx.lineWidth = 10*(1-k); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(f.x,f.y); ctx.lineTo(f.x + Math.cos(f.ang)*120*k, f.y + Math.sin(f.ang)*120*k); ctx.stroke(); break;
+    case 'blink': ctx.globalAlpha = 1-k; ctx.strokeStyle = f.color; ctx.lineWidth = 2; ctx.setLineDash([6,6]); ctx.beginPath(); ctx.moveTo(f.x,f.y); ctx.lineTo(f.x2,f.y2); ctx.stroke(); ctx.setLineDash([]); ctx.beginPath(); ctx.arc(f.x,f.y,16+30*k,0,TAU); ctx.stroke(); ctx.beginPath(); ctx.arc(f.x2,f.y2,30-20*k,0,TAU); ctx.stroke(); break;
+    case 'bail': ctx.globalAlpha = 1-k; ctx.strokeStyle = f.color; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(f.x,f.y,20+120*k,0,TAU); ctx.stroke(); ctx.globalAlpha = (1-k)*0.6; ctx.fillStyle = f.color; ctx.fillRect(f.x-6,0,12,f.y); break;
+  }
+  ctx.restore();
+}
+function cdInfo(p,hand){
+  const tid = activeId(p,hand); if (!tid) return {frac:1, label:''}; const T = TRIGGERS[tid]; const key = hand+':'+tid;
+  if (T.kind === 'sniper' && p.charging && p.chargeHand === hand) return {frac:p.chargeFrac, label:p.chargeFrac >= 1 ? '照準完了' : '照準中', charge:true};
+  if (T.kind === 'bullet' && p.chargingCube && p[hand].charge > 0) return {frac:p.cubeFrac, label:'キューブ分割', charge:true};
+  const ca = T.kind === 'melee' ? chargeAttackFor(p,tid) : null; if (ca && p.cd['charge:'+tid] > 0) return {frac:1 - p.cd['charge:'+tid]/(ca.cd*p.cdMul), label:ca.name};
+  if (T.kind === 'shield') return {frac:p.shield.broken > 0 ? 1 - p.shield.broken/1.4 : p.shield.hp/p.shield.max, label:p.shield.broken > 0 ? '再展開まで' : '耐久'};
+  const total = (T.cd || T.rate || 0)*p.cdMul; if (p.cd[key] > 0 && total > 0) return {frac:1 - p.cd[key]/total, label:''};
+  return {frac:1, label:''};
+}
+function drawHUD(){
+  const PW = 430, PH = 124, pad = 14;
+  for (let i=0;i<2;i++){
+    const p = B.players[i]; const right = i === 1; const x0 = right ? W-pad-PW : pad; const y0 = pad; const dir = right ? -1 : 1; const ex = right ? x0+PW-12 : x0+12; const al = right ? 'right' : 'left';
+    ctx.fillStyle = 'rgba(6,10,20,0.78)'; rrect(x0,y0,PW,PH,6); ctx.fill(); ctx.strokeStyle = hexToRgba(p.color,0.5); ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = p.color; ctx.fillRect(right ? x0+PW-4 : x0, y0, 4, PH);
+    text((i === 0 ? (G.mode === 'demo' ? 'CPU 1' : '1P') : (G.mode === 'cpu' ? 'CPU' : G.mode === 'demo' ? 'CPU 2' : '2P')), ex, y0+16, {size:12, weight:700, num:true, align:al, color:p.color});
+    text(p.char.name, ex + dir*34, y0+17, {size:21, weight:900, align:al, color:'#ffffff'});
+    text(p.char.squad + '・' + p.char.pos, ex + dir*(34 + p.char.name.length*21 + 8), y0+18, {size:11, align:al, color:'#8494ad'});
+    // body bar
+    const bw = PW-24; const bx = x0+12, by = y0+32; ctx.fillStyle = '#131c30'; rrect(bx,by,bw,13,3); ctx.fill();
+    const bf = clamp(p.body/p.bodyMax,0,1); const bcol = bf < 0.3 ? '#ff5e5e' : p.color; ctx.fillStyle = bcol; if (bf > 0){ rrect(right ? bx + bw*(1-bf) : bx, by, bw*bf, 13, 3); ctx.fill(); }
+    text('耐久', right ? bx+bw-4 : bx+4, by+7, {size:10, weight:700, align:al, color:'#05080f'});
+    text(Math.ceil(p.body) + '', right ? bx+4 : bx+bw-4, by+7, {size:12, weight:700, num:true, align:right ? 'left' : 'right', color:'#dbe6f5'});
+    // trion bar
+    const ty = y0+50; ctx.fillStyle = '#131c30'; rrect(bx,ty,bw,7,3); ctx.fill(); const tf = clamp(p.trion/p.trionMax,0,1); ctx.fillStyle = '#8af5d2'; if (tf > 0){ rrect(right ? bx + bw*(1-tf) : bx, ty, bw*tf, 7, 3); ctx.fill(); }
+    text('トリオン ' + Math.ceil(p.trion) + '/' + p.trionMax, right ? bx+bw : bx, ty+15, {size:10, align:al, color:'#8af5d2'});
+    // trigger rows
+    for (let h=0; h<2; h++){
+      const hand = h === 0 ? 'main' : 'sub'; const ry = y0+86 + h*18; const tid = activeId(p,hand); const T = tid ? TRIGGERS[tid] : null; const info = cdInfo(p,hand);
+      text(hand === 'main' ? 'MAIN' : 'SUB', ex, ry, {size:11, weight:700, num:true, align:al, color:'#8494ad'});
+      text(T ? T.name : '—', ex + dir*40, ry, {size:14, weight:700, align:al, color: info.frac >= 1 ? '#ffffff' : '#a8b4c8'});
+      const cbx = right ? ex - 40 - 130 - 70 : ex + 40 + 130; ctx.fillStyle = '#131c30'; ctx.fillRect(cbx, ry-4, 70, 8); ctx.fillStyle = info.charge ? (info.frac >= 1 ? '#ff5252' : '#ffd166') : p.color; ctx.fillRect(cbx, ry-4, 70*clamp(info.frac,0,1), 8);
+      if (info.label) text(info.label, right ? cbx-6 : cbx+76, ry, {size:10, align:al, color:'#ffd166'});
+      else { const others = p[hand].slots.filter((s,j) => j !== p[hand].idx).map(s => TRIGGERS[s].name).join(' / '); if (others) text(others, right ? cbx-6 : cbx+76, ry, {size:10, align:al, color:'#5e6c86'}); }
+    }
+    // status chips
+    const chips = []; if (p.bagworm) chips.push(['BAGWORM','#8494ad']); if (p.chameleon) chips.push(['CHAMELEON','#8af5d2']); if (p.leak > 0) chips.push(['漏出','#ffffff']); if (p.heavy > 0) chips.push(['鉛弾','#b8c0cc']); if (p.stun > 0) chips.push(['拘束','#ffd166']); if (p.shield.broken > 0) chips.push(['盾破損','#ff5e5e']); if (!p.lock) chips.push(['ロック不可','#ff9d9d']);
+    let cx = right ? x0+PW-12 : x0+12; for (const [label,col] of chips){ font(10,700,F_NUM); const w = ctx.measureText(label).width + 10; const cxx = right ? cx-w : cx; ctx.fillStyle = hexToRgba(col,0.18); rrect(cxx, y0+PH+4, w, 16, 3); ctx.fill(); text(label, cxx+w/2, y0+PH+12, {size:10, weight:700, num:true, align:'center', color:col}); cx += dir*(w+6); }
+  }
+  // centre: score & timer
+  const cx = W/2; ctx.fillStyle = 'rgba(6,10,20,0.78)'; rrect(cx-150, pad, 300, 64, 6); ctx.fill(); ctx.strokeStyle = '#223150'; ctx.stroke();
+  text(String(B.score[0]), cx-70, pad+30, {size:40, weight:700, num:true, align:'center', color:B.players[0].color});
+  text(String(B.score[1]), cx+70, pad+30, {size:40, weight:700, num:true, align:'center', color:B.players[1].color});
+  text('ROUND ' + B.round + '  ·  ' + G.target + '本先取', cx, pad+14, {size:11, weight:600, num:true, align:'center', color:'#8494ad'});
+  const tsec = Math.max(0, Math.ceil(B.time)); text(String(Math.floor(tsec/60)) + ':' + String(tsec%60).padStart(2,'0'), cx, pad+40, {size:26, weight:700, num:true, align:'center', color: tsec <= 10 ? '#ff5e5e' : '#ffffff'});
+  // control hints
+  ctx.globalAlpha = 0.6;
+  text(G.mode === 'demo' ? '観戦モード　Esc ポーズ' : '1P  WASD 移動 ／ F メイン ／ G サブ ／ R・T 切替', pad, H-12, {size:11, color:'#8494ad'});
+  if (G.mode === 'vs') text('2P  矢印 移動 ／ K メイン ／ L サブ ／ I・O 切替', W-pad, H-12, {size:11, align:'right', color:'#8494ad'}); else text('CPU: ' + DIFF_NAMES[G.diff] + '　Esc ポーズ', W-pad, H-12, {size:11, align:'right', color:'#8494ad'});
+  ctx.globalAlpha = 1;
+}
+function drawBanner(){
+  if (B.phase === 'countdown'){ const n = Math.ceil(B.phaseT - 0.2); if (n >= 1){ ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0,H/2-70,W,140); text('戦闘開始まで', W/2, H/2-34, {size:18, weight:700, align:'center', color:'#8af5d2'}); text(String(n), W/2, H/2+14, {size:72, weight:700, num:true, align:'center', color:'#ffffff'}); } }
+  if (B.banner){ const b = B.banner; const k = b.t/b.dur; const a = k < 0.1 ? k/0.1 : (k > 0.8 ? (1-k)/0.2 : 1); ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0,H/2-64,W,128); ctx.fillStyle = '#8af5d2'; ctx.fillRect(0,H/2-64,W,2); ctx.fillRect(0,H/2+62,W,2);
+    text(b.text, W/2, H/2-10, {size:52, weight:900, align:'center', color:'#ffffff'}); if (b.sub) text(b.sub, W/2, H/2+34, {size:18, weight:700, align:'center', color:'#8af5d2'}); ctx.restore(); }
+  if (G.pause){ ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H); text('PAUSE', W/2, H/2-30, {size:54, weight:700, num:true, align:'center', color:'#ffffff'}); text('Enter / Esc：再開　　Backspace：隊員選択に戻る', W/2, H/2+24, {size:16, align:'center', color:'#8494ad'}); }
+}
+function drawBattle(){
+  ctx.save();
+  if (B.shake > 0) ctx.translate(rnd(-B.shake,B.shake), rnd(-B.shake,B.shake));
+  if (bgCanvas) ctx.drawImage(bgCanvas,0,0); else { ctx.fillStyle = '#0a0f1c'; ctx.fillRect(0,0,W,H); }
+  for (const w of B.walls){ ctx.fillStyle = hexToRgba(w.color, 0.35); ctx.fillRect(w.x,w.y,w.w,w.h); ctx.strokeStyle = w.color; ctx.lineWidth = 2; ctx.strokeRect(w.x,w.y,w.w,w.h); const f = clamp(w.hp/w.hpMax,0,1); ctx.fillStyle = '#ffffff'; if (w.w > w.h) ctx.fillRect(w.x, w.y+w.h/2-1, w.w*f, 2); else ctx.fillRect(w.x+w.w/2-1, w.y + w.h*(1-f), 2, w.h*f); }
+  for (const w of B.wires){ ctx.strokeStyle = hexToRgba(w.color, 0.75); ctx.lineWidth = 1.5; ctx.setLineDash([5,4]); ctx.beginPath(); ctx.moveTo(w.x1,w.y1); ctx.lineTo(w.x2,w.y2); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = w.color; ctx.fillRect(w.x1-2,w.y1-2,4,4); ctx.fillRect(w.x2-2,w.y2-2,4,4); }
+  for (const f of B.fx) if (f.type === 'boom' || f.type === 'dash' || f.type === 'blink' || f.type === 'bail') drawFx(f);
+  for (const p of B.players) drawPlayer(p);
+  for (const b of B.bullets) drawBullet(b);
+  for (const f of B.fx) if (!(f.type === 'boom' || f.type === 'dash' || f.type === 'blink' || f.type === 'bail')) drawFx(f);
+  for (const f of B.pops){ const k = f.t/f.dur; ctx.save(); ctx.globalAlpha = 1-k*k; ctx.shadowColor = '#000'; ctx.shadowBlur = 4; text(f.text, f.x, f.y, {size:f.size, weight:700, num:/^\d+$/.test(f.text), align:'center', color:f.color}); ctx.restore(); }
+  ctx.restore();
+  drawHUD(); drawBanner();
+}
+
+// ---------- screens
+function drawBackdrop(){
+  ctx.fillStyle = '#070b14'; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle = 'rgba(40,56,90,0.25)'; ctx.lineWidth = 1; for (let x=0;x<=W;x+=64){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); } for (let y=0;y<=H;y+=64){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  const t = G.t; for (let i=0;i<18;i++){ const x = (i*173 + t*(12 + i*3)) % (W+80) - 40; const y = (i*97 + Math.sin(t*0.6+i)*40) % H; ctx.save(); ctx.translate(x,y); ctx.rotate(t*0.5+i); ctx.globalAlpha = 0.12; ctx.fillStyle = i%3 === 0 ? '#ffa348' : '#4fd8ff'; const s = 6 + (i%4)*4; ctx.fillRect(-s/2,-s/2,s,s); ctx.restore(); }
+}
+function drawTitle(){
+  drawBackdrop(); const t = G.t;
+  ctx.save(); ctx.strokeStyle = 'rgba(138,245,210,0.25)'; ctx.lineWidth = 2; hexPath(W/2, 300, 230 + Math.sin(t)*6, t*0.1); ctx.stroke(); hexPath(W/2, 300, 170, -t*0.15); ctx.stroke(); ctx.restore();
+  text('WORLD TRIGGER', W/2, 215, {size:22, weight:600, num:true, align:'center', color:'#8af5d2'});
+  text('ワールドトリガー', W/2, 275, {size:68, weight:900, align:'center', color:'#ffffff'});
+  text('RANK BATTLE', W/2, 340, {size:44, weight:700, num:true, align:'center', color:'#4fd8ff'});
+  text('1on1 個人ランク戦 ・ ファンメイド', W/2, 392, {size:16, align:'center', color:'#8494ad'});
+  const blink = Math.sin(t*4) > -0.2; if (blink) text('Enter ／ F ／ K を押して開始', W/2, 470, {size:20, weight:700, align:'center', color:'#ffffff'});
+  text('画面をクリックしてキー入力を有効にしてください', W/2, 520, {size:13, align:'center', color:'#5e6c86'});
+  text('© 原作：葦原大介『ワールドトリガー』の非公式二次創作です。', W/2, H-30, {size:12, align:'center', color:'#5e6c86'});
+}
+const MODE_ITEMS = [
+  {label:'モード', get:() => G.mode === 'cpu' ? '1P vs CPU' : G.mode === 'vs' ? '2P 対戦（同じキーボード）' : 'CPU vs CPU（観戦）', change:d => { const o = ['cpu','vs','demo']; G.mode = o[(o.indexOf(G.mode) + d + 3) % 3]; }},
+  {label:'CPUの強さ', get:() => G.mode !== 'vs' ? DIFF_NAMES[G.diff] : '—', change:d => { G.diff = (G.diff + d + 3) % 3; }},
+  {label:'先取ポイント', get:() => G.target + '本先取', change:d => { G.target = clamp(G.target + d, 1, 5); }},
+  {label:'制限時間', get:() => G.timeLimit + '秒 / ラウンド', change:d => { const o = [60,90,120,180]; G.timeLimit = o[(o.indexOf(G.timeLimit) + d + o.length) % o.length]; }},
+  {label:'マップ', get:() => G.mapIdx < 0 ? 'ランダム' : MAPS[G.mapIdx].name, change:d => { const n = MAPS.length + 1; G.mapIdx = ((G.mapIdx + 1 + d + n) % n) - 1; }},
+  {label:'隊員選択へ進む', get:() => '', change:() => {}},
+];
+function modeUpdate(){
+  const n = MODE_ITEMS.length;
+  if (anyP('upP')){ G.menuIdx = (G.menuIdx + n - 1) % n; sfx('ui'); } if (anyP('downP')){ G.menuIdx = (G.menuIdx + 1) % n; sfx('ui'); }
+  if (anyP('leftP')){ MODE_ITEMS[G.menuIdx].change(-1); sfx('ui'); } if (anyP('rightP')){ MODE_ITEMS[G.menuIdx].change(1); sfx('ui'); }
+  if (anyP('confirmP') || anyP('mainP')){ if (G.menuIdx === n-1 || IN[0].confirmP || IN[1].confirmP){ G.sel = {cursor:[G.picks[0], G.picks[1]], locked:[false,false], stage:0}; G.custom = [null,null]; G.screen = 'select'; sfx('ready'); } else { MODE_ITEMS[G.menuIdx].change(1); sfx('ui'); } }
+  if (anyP('backP')) G.screen = 'title';
+}
+function drawMode(){
+  drawBackdrop();
+  text('対戦設定', W/2, 110, {size:40, weight:900, align:'center', color:'#ffffff'}); text('MATCH SETTINGS', W/2, 150, {size:14, weight:600, num:true, align:'center', color:'#8af5d2'});
+  MODE_ITEMS.forEach((it,i) => { const y = 230 + i*62; const sel = i === G.menuIdx; if (sel){ ctx.fillStyle = 'rgba(79,216,255,0.1)'; rrect(W/2-360, y-24, 720, 48, 6); ctx.fill(); ctx.strokeStyle = '#4fd8ff'; ctx.lineWidth = 1.5; ctx.stroke(); }
+    const last = i === MODE_ITEMS.length-1; text(it.label, last ? W/2 : W/2-330, y, {size:last ? 22 : 18, weight:700, align:last ? 'center' : 'left', color: sel ? '#ffffff' : '#a8b4c8'});
+    if (!last){ const v = it.get(); text(v, W/2+150, y, {size:18, weight:700, align:'center', color: sel ? '#4fd8ff' : '#dbe6f5'}); if (sel){ text('◀', W/2-30, y, {size:16, align:'center', color:'#8af5d2'}); text('▶', W/2+330, y, {size:16, align:'center', color:'#8af5d2'}); } } });
+  text('↑↓ 項目　←→ 変更　Enter 決定　Esc 戻る', W/2, H-40, {size:14, align:'center', color:'#8494ad'});
+}
+const GRID = {x:330, y:92, cw:100, ch:66, gap:6, cols:6};
+function selectUpdate(){
+  if (G.edit){ editorUpdate(); return; }
+  const n = CHARS.length, cols = GRID.cols; const order = G.mode === 'vs' ? [0,1] : [G.sel.stage];
+  for (const i of order){
+    const ctl = G.mode !== 'vs' ? 0 : i; const inp = IN[ctl];
+    if (G.sel.locked[i]){ if (inp.subP || inp.backP){ G.sel.locked[i] = false; sfx('ui'); } continue; }
+    let c = G.sel.cursor[i]; if (inp.leftP) c = (c + n - 1) % n; if (inp.rightP) c = (c + 1) % n; if (inp.upP) c = (c - cols + n) % n; if (inp.downP) c = (c + cols) % n;
+    if (c !== G.sel.cursor[i]){ G.sel.cursor[i] = c; G.custom[i] = null; sfx('ui'); }
+    if (inp.swMainP){ openEditor(i); sfx('ui'); continue; }
+    if (inp.mainP || (ctl === 0 && inp.confirmP)){ G.picks[i] = c; G.sel.locked[i] = true; sfx('ready'); if (G.mode !== 'vs' && G.sel.stage === 0){ G.sel.stage = 1; } }
+    else if (inp.backP){ if (G.mode !== 'vs' && G.sel.stage === 1){ G.sel.stage = 0; G.sel.locked[0] = false; } else G.screen = 'mode'; sfx('ui'); }
+  }
+  if (G.sel.locked[0] && G.sel.locked[1]) startBattle();
+}
+function openEditor(i){ const c = CHARS[G.sel.cursor[i]]; const cur = G.custom[i] || {main:c.main, sub:c.sub}; const pad4 = a => [0,1,2,3].map(k => a[k] || ''); G.edit = {player:i, slots:pad4(cur.main).concat(pad4(cur.sub)), cur:0}; }
+function editorUpdate(){
+  const E = G.edit; const ctl = G.mode !== 'vs' ? 0 : E.player; const inp = IN[ctl]; const list = [''].concat(TRIGGER_ORDER);
+  if (inp.leftP){ E.cur = (E.cur + 7) % 8; sfx('ui'); } if (inp.rightP){ E.cur = (E.cur + 1) % 8; sfx('ui'); }
+  if (inp.upP || inp.downP){ let k = list.indexOf(E.slots[E.cur]); k = (k + (inp.downP ? 1 : -1) + list.length) % list.length; E.slots[E.cur] = list[k]; sfx('ui'); }
+  if (inp.mainP || inp.confirmP){ G.custom[E.player] = {main:E.slots.slice(0,4), sub:E.slots.slice(4,8)}; G.edit = null; sfx('ready'); }
+  else if (inp.subP || inp.backP){ G.edit = null; sfx('ui'); }
+}
+function drawStatBars(c, x, y, w){
+  const est = !!c.flags.est; c.st.forEach((v,i) => { const yy = y + i*21; text(STAT_NAMES[i], x, yy, {size:11, color:'#8494ad'}); ctx.fillStyle = '#131c30'; ctx.fillRect(x+62, yy-5, w, 10); const f = clamp(v/15,0,1); ctx.fillStyle = i === 0 ? '#8af5d2' : '#4f7dff'; ctx.fillRect(x+62, yy-5, w*f, 10); text(String(v), x+62+w+8, yy, {size:13, weight:700, num:true, color:'#ffffff'}); });
+  if (est) text('※ BBF未掲載のため推定値', x, y + 8*21, {size:10, color:'#ffd166'});
+}
+function drawSetList(set, x, y){
+  const draw = (label, arr, yy) => { text(label, x, yy, {size:11, weight:700, num:true, color:'#8494ad'}); arr.forEach((tid,i) => { const T = tid ? TRIGGERS[tid] : null; text(T ? T.name : '—', x+42, yy + i*17, {size:13, weight:T ? 700 : 500, color:T ? '#ffffff' : '#3d4a63'}); if (T) text(CAT_LABEL[T.cat].split('/')[0], x+150, yy + i*17, {size:10, color:'#5e6c86'}); }); };
+  draw('MAIN', set.main, y); draw('SUB', set.sub, y + 4*17 + 10);
+}
+function drawSelect(){
+  drawBackdrop();
+  text('隊員選択', W/2, 48, {size:30, weight:900, align:'center', color:'#ffffff'}); text('SELECT AGENT', W/2, 74, {size:12, weight:600, num:true, align:'center', color:'#8af5d2'});
+  const n = CHARS.length;
+  for (let i=0;i<n;i++){
+    const c = CHARS[i]; const col = i % GRID.cols, row = Math.floor(i / GRID.cols); const x = GRID.x + col*(GRID.cw+GRID.gap), y = GRID.y + row*(GRID.ch+GRID.gap);
+    ctx.fillStyle = '#0f1626'; rrect(x,y,GRID.cw,GRID.ch,4); ctx.fill(); ctx.strokeStyle = '#223150'; ctx.lineWidth = 1; ctx.stroke();
+    const on0 = G.sel.cursor[0] === i && (G.mode === 'vs' || G.sel.stage === 0 || G.sel.locked[0]), on1 = G.sel.cursor[1] === i && (G.mode === 'vs' || G.sel.stage === 1 || G.sel.locked[1]);
+    if (on0){ ctx.strokeStyle = '#4fd8ff'; ctx.lineWidth = 3; rrect(x+1,y+1,GRID.cw-2,GRID.ch-2,4); ctx.stroke(); } if (on1){ ctx.strokeStyle = '#ffa348'; ctx.lineWidth = 3; rrect(x+(on0?5:1),y+(on0?5:1),GRID.cw-(on0?10:2),GRID.ch-(on0?10:2),4); ctx.stroke(); }
+    text(c.name, x+8, y+22, {size:15, weight:700, color:'#ffffff'}); text(c.squad, x+8, y+44, {size:10, color:'#8494ad'});
+    const tag = POS_TAG[c.pos] || '?'; ctx.fillStyle = tag === 'AT' ? '#ff5e5e' : tag === 'SN' ? '#b388ff' : tag === 'SH' ? '#ffd166' : tag === 'GN' ? '#ffa348' : '#8af5d2'; rrect(x+GRID.cw-30, y+6, 24, 14, 3); ctx.fill(); text(tag, x+GRID.cw-18, y+13, {size:10, weight:700, num:true, align:'center', color:'#05080f'});
+  }
+  for (let i=0;i<2;i++){
+    const x = i === 0 ? 16 : 990; const y = 92; const w = 278; const col = i === 0 ? '#4fd8ff' : '#ffa348'; const c = CHARS[G.sel.cursor[i]];
+    ctx.fillStyle = 'rgba(6,10,20,0.8)'; rrect(x,y,w,590,6); ctx.fill(); ctx.strokeStyle = G.sel.locked[i] ? col : '#223150'; ctx.lineWidth = G.sel.locked[i] ? 2 : 1; ctx.stroke(); ctx.fillStyle = col; ctx.fillRect(x, y, w, 4);
+    const who = i === 0 ? (G.mode === 'demo' ? 'CPU 1' : '1P') : (G.mode === 'cpu' ? 'CPU' : G.mode === 'demo' ? 'CPU 2' : '2P'); text(who, x+14, y+24, {size:14, weight:700, num:true, color:col});
+    if (G.sel.locked[i]) text('決定済み', x+w-14, y+24, {size:12, weight:700, align:'right', color:col}); else if (G.mode !== 'vs' && G.sel.stage !== i) text('待機中', x+w-14, y+24, {size:12, align:'right', color:'#5e6c86'});
+    text(c.name, x+14, y+56, {size:26, weight:900, color:'#ffffff'}); text(c.kana, x+14, y+80, {size:11, color:'#8494ad'});
+    text(c.squad + '　' + c.pos + '　' + c.rank, x+14, y+100, {size:12, color:'#a8b4c8'});
+    text(c.style === 'shooter' ? '射撃：シューター（キューブ分割）' : '射撃：ガンナー（銃型）', x+14, y+118, {size:11, color:'#5e6c86'});
+    drawStatBars(c, x+14, y+146, 130);
+    const set = G.custom[i] || {main:c.main, sub:c.sub}; drawSetList(set, x+14, y+352);
+    if (G.custom[i]) text('カスタムセット', x+w-14, y+352, {size:11, weight:700, align:'right', color:'#ffd166'});
+    const k1 = i === 0 || G.mode !== 'vs' ? ['WASD','F','G','R'] : ['矢印','K','L','I'];
+    text(k1[0] + ' 選択　' + k1[1] + ' 決定　' + k1[2] + ' 戻す', x+14, y+548, {size:11, color:'#8494ad'}); text(k1[3] + '：トリガーセット編集', x+14, y+566, {size:11, color:'#8494ad'});
+  }
+  const cr = CHARS[G.sel.cursor[G.mode !== 'vs' ? G.sel.stage : 0]]; text(cr.note || '', W/2, 500, {size:13, align:'center', color:'#a8b4c8'});
+  text(G.mode === 'cpu' ? (G.sel.stage === 0 ? '自分の隊員を選んでください' : 'CPUの隊員を選んでください（Escで戻る）') : G.mode === 'demo' ? (G.sel.stage === 0 ? 'CPU 1 の隊員を選んでください' : 'CPU 2 の隊員を選んでください（Escで戻る）') : '両プレイヤーが決定すると開戦', W/2, 530, {size:14, weight:700, align:'center', color:'#8af5d2'});
+  text('AT アタッカー　SH シューター　GN ガンナー　SN スナイパー　AR オールラウンダー', W/2, 560, {size:11, align:'center', color:'#5e6c86'});
+  text('Esc：対戦設定に戻る', W/2, 690, {size:12, align:'center', color:'#5e6c86'});
+  if (G.edit) drawEditor();
+}
+function drawEditor(){
+  const E = G.edit; const c = CHARS[G.sel.cursor[E.player]]; const col = E.player === 0 ? '#4fd8ff' : '#ffa348';
+  ctx.fillStyle = 'rgba(4,7,14,0.93)'; ctx.fillRect(0,0,W,H);
+  text('トリガーセット編集', W/2, 60, {size:30, weight:900, align:'center', color:'#ffffff'}); text(c.name + '　' + c.squad, W/2, 96, {size:14, align:'center', color:col});
+  for (let s=0;s<8;s++){ const hand = s < 4 ? 'MAIN' : 'SUB'; const x = 110 + (s%4)*270, y = s < 4 ? 170 : 330; const tid = E.slots[s]; const T = tid ? TRIGGERS[tid] : null; const sel = s === E.cur;
+    if (s%4 === 0) text(hand + (s < 4 ? '（右手）' : '（左手）'), x, y-26, {size:12, weight:700, num:true, color:'#8494ad'});
+    ctx.fillStyle = sel ? 'rgba(79,216,255,0.12)' : '#0f1626'; rrect(x,y,250,110,6); ctx.fill(); ctx.strokeStyle = sel ? col : '#223150'; ctx.lineWidth = sel ? 2.5 : 1; ctx.stroke();
+    text('SLOT ' + (s%4+1), x+12, y+18, {size:11, weight:700, num:true, color:'#5e6c86'});
+    text(T ? T.name : '（空き）', x+12, y+50, {size:T ? 22 : 18, weight:T ? 900 : 500, color:T ? '#ffffff' : '#3d4a63'});
+    if (T) text(CAT_LABEL[T.cat] + (T.recipe ? '　' + T.recipe : ''), x+12, y+82, {size:11, color:'#8494ad'});
+    if (sel){ text('▲', x+225, y+30, {size:12, align:'center', color:col}); text('▼', x+225, y+80, {size:12, align:'center', color:col}); } }
+  const T = E.slots[E.cur] ? TRIGGERS[E.slots[E.cur]] : null;
+  ctx.fillStyle = '#0f1626'; rrect(110, 480, 1060, 110, 6); ctx.fill(); ctx.strokeStyle = '#223150'; ctx.stroke();
+  text(T ? T.name + '（' + T.en + '）' : '空きスロット', 130, 508, {size:18, weight:700, color:'#ffffff'});
+  text(T ? T.desc : 'このスロットにはトリガーを装備しません。', 130, 540, {size:14, color:'#a8b4c8'});
+  if (T) text(trigStatLine(T), 130, 566, {size:12, color:'#8af5d2'});
+  text('←→ スロット移動　↑↓ トリガー変更　決定ボタン：保存　サブボタン / Esc：キャンセル', W/2, 640, {size:14, align:'center', color:'#8494ad'});
+  text('※ 旋空は弧月、スラスターはレイガストと同じセットに入れると効果を発揮します', W/2, 670, {size:12, align:'center', color:'#5e6c86'});
+}
+function trigStatLine(T){
+  const parts = [];
+  if (T.kind === 'melee') parts.push('威力 ' + T.dmg, 'リーチ ' + T.range, '間隔 ' + T.cd + 's');
+  if (T.kind === 'bullet') parts.push('威力 ' + T.dmg + (T.blast ? '＋爆発 ' + T.blast.dmg : ''), '弾速 ' + T.speed, '間隔 ' + T.rate + 's', 'トリオン ' + T.cost);
+  if (T.kind === 'sniper') parts.push('威力 ' + T.dmg, '照準 ' + T.charge + 's', '弾速 ' + T.speed, 'トリオン ' + T.cost);
+  if (T.kind === 'dash' || T.kind === 'blink' || T.kind === 'thruster') parts.push('距離 ' + T.distance, '再使用 ' + T.cd + 's', 'トリオン ' + T.cost);
+  if (T.kind === 'place') parts.push('再使用 ' + T.cd + 's', 'トリオン ' + T.cost);
+  if (T.kind === 'shield') parts.push('耐久 ' + T.hp + '×防御補正');
+  if (T.kind === 'toggle') parts.push(T.drain ? '毎秒 ' + T.drain + ' トリオン消費' : '毎秒 0.35 トリオン消費');
+  if (T.kind === 'passive') parts.push('威力 ' + T.dmg, 'リーチ ' + T.range, 'トリオン ' + T.cost);
+  return parts.join('　');
+}
+function drawResult(){
+  drawBackdrop(); const w = B.winner;
+  if (w >= 0){ const p = B.players[w]; text('WINNER', W/2, 120, {size:22, weight:700, num:true, align:'center', color:'#8af5d2'}); text(p.char.name, W/2, 180, {size:60, weight:900, align:'center', color:p.color}); text(p.char.squad + '　' + p.char.pos, W/2, 230, {size:16, align:'center', color:'#a8b4c8'}); }
+  else text('引き分け', W/2, 180, {size:50, weight:900, align:'center', color:'#ffffff'});
+  text(B.score[0] + '  -  ' + B.score[1], W/2, 300, {size:54, weight:700, num:true, align:'center', color:'#ffffff'});
+  B.players.forEach((p,i) => { const x = i === 0 ? W/2-300 : W/2+300; text(p.char.name, x, 370, {size:22, weight:900, align:'center', color:p.color});
+    const rows = [['与ダメージ', Math.round(p.stats.dmg)], ['命中回数', p.stats.hits], ['発射回数', p.stats.shots], ['防御したダメージ', Math.round(p.stats.blocked)]];
+    rows.forEach((r,j) => { text(r[0], x-90, 410 + j*28, {size:14, color:'#8494ad'}); text(String(r[1]), x+90, 410 + j*28, {size:18, weight:700, num:true, align:'right', color:'#ffffff'}); }); });
+  text('Enter：再戦　　Esc：隊員選択　　Backspace：タイトル', W/2, 600, {size:16, align:'center', color:'#8af5d2'});
+}
+function render(){
+  ctx.setTransform(DPR,0,0,DPR,0,0); ctx.clearRect(0,0,W,H);
+  switch (G.screen){ case 'title': drawTitle(); break; case 'mode': drawMode(); break; case 'select': drawSelect(); break; case 'battle': drawBattle(); break; case 'result': drawResult(); break; }
+  if (muted) text('MUTE', W-14, 16, {size:11, weight:700, num:true, align:'right', color:'#5e6c86'});
+}
+function update(dt){
+  G.t += dt; if (kPressed['KeyM']) muted = !muted;
+  switch (G.screen){
+    case 'title': if (anyP('confirmP') || anyP('mainP')){ G.screen = 'mode'; sfx('ui'); } break;
+    case 'mode': modeUpdate(); break;
+    case 'select': selectUpdate(); break;
+    case 'battle':
+      if (anyP('backP')){ G.pause = !G.pause; sfx('ui'); }
+      if (G.pause){ if (anyP('confirmP')) G.pause = false; if (kPressed['Backspace']){ G.pause = false; G.screen = 'select'; G.sel.locked = [false,false]; G.sel.stage = 0; } break; }
+      updateBattle(dt); break;
+    case 'result':
+      if (anyP('confirmP') || anyP('mainP')) startBattle(); else if (anyP('backP')){ G.screen = 'select'; G.sel.locked = [false,false]; G.sel.stage = 0; } else if (kPressed['Backspace']) G.screen = 'title';
+      break;
+  }
+}
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(0.05, (now-last)/1000) || 0.016; last = now;
+  IN[0] = readInput(0); IN[1] = readInput(1);
+  update(dt); render();
+  for (const k in kPressed) delete kPressed[k]; for (const k in kReleased) delete kReleased[k];
+  requestAnimationFrame(frame);
+}
+try { if (document.fonts && document.fonts.load){ document.fonts.load('900 40px "Zen Kaku Gothic New"'); document.fonts.load('700 40px "Rajdhani"'); } } catch(e) {}
+try {
+  const hot = window.claude && window.claude.hot;
+  if (hot && hot.snapshot) hot.snapshot(() => ({picks:G.picks.slice(), mode:G.mode, diff:G.diff, target:G.target, timeLimit:G.timeLimit, mapIdx:G.mapIdx}));
+  const hd = hot && hot.data; if (hd && Array.isArray(hd.picks) && hd.picks.length === 2){ G.picks = hd.picks.map(v => clamp(v|0, 0, CHARS.length-1)); if (hd.mode === 'cpu' || hd.mode === 'vs') G.mode = hd.mode; if (typeof hd.diff === 'number') G.diff = clamp(hd.diff|0,0,2); if (typeof hd.target === 'number') G.target = clamp(hd.target|0,1,5); if (typeof hd.timeLimit === 'number') G.timeLimit = hd.timeLimit; if (typeof hd.mapIdx === 'number') G.mapIdx = hd.mapIdx; }
+} catch(e) {}
+window.WT_DEBUG = { state:() => ({screen:G.screen, mode:G.mode, cursor:G.sel.cursor.slice(), stage:G.sel.stage, locked:G.sel.locked.slice(), score:B ? B.score.slice() : null, round:B ? B.round : 0, winner:B ? B.winner : -1, phase:B ? B.phase : '', time:B ? B.time : 0, players:B ? B.players.map(p => ({name:p.char.name, body:Math.round(p.body), trion:Math.round(p.trion), bailed:p.bailed, dmg:Math.round(p.stats.dmg), hits:p.stats.hits, shots:p.stats.shots, x:Math.round(p.x), y:Math.round(p.y), main:activeId(p,'main'), sub:activeId(p,'sub'), sh:p.shieldActive, stun:+p.stun.toFixed(1), heavy:+p.heavy.toFixed(1), plan:p.ai ? p.ai.dashPlan : '', wm:p.ai ? p.ai.wantMain : -1, ws:p.ai ? p.ai.wantSub : -1, held:p.ai ? [p.ai.held.main, p.ai.held.sub] : null, cd:Object.keys(p.cd).filter(k => p.cd[k] > 0)})) : null}) };
+requestAnimationFrame(frame);
+})();
+</script>
