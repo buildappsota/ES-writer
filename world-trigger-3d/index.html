@@ -70,7 +70,7 @@ footer{width:100%;max-width:1280px;color:var(--muted);font-size:.72rem;line-heig
 </div>
 
 <div class="legend">
-  <div><b>PC</b><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移動　<kbd>Space</kbd> ジャンプ　マウス左 メイン　右 サブ　<kbd>Q</kbd>/<kbd>E</kbd> トリガー切替　<kbd>Tab</kbd> ロックオン切替　<kbd>Esc</kbd> ポーズ</span></div>
+  <div><b>PC</b><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移動　<kbd>Space</kbd> ジャンプ　マウス左 メイン　右 サブ　<kbd>1</kbd>〜<kbd>4</kbd> メイン直接選択　<kbd>Z</kbd>〜<kbd>V</kbd> サブ直接選択（既定では距離に応じて自動切替）　<kbd>Tab</kbd> ロックオン切替　<kbd>Esc</kbd> ポーズ</span></div>
   <div><b>PAD</b><span>左スティック 移動　右スティック 視点　RT/A メイン　LT/B サブ　LB/RB 切替　X ジャンプ　Start 決定</span></div>
   <div><b>PHONE</b><span>スマホで同じリンクを開き「このデバイスをコントローラーにする」→ 画面に出る4文字コードを入力すると、スマホがコントローラーになります。</span></div>
 </div>
@@ -214,12 +214,12 @@ const SFX = { shot:['square',900,300,0.08,0.04], slash:['sawtooth',520,120,0.12,
 function sfx(name){ if (!AC || muted) return; const P = SFX[name]; if (!P) return; if (AC.state === 'suspended') AC.resume(); const t = AC.currentTime; const o = AC.createOscillator(), g = AC.createGain(); o.connect(g); g.connect(AC.destination); o.type = P[0]; o.frequency.setValueAtTime(P[1], t); o.frequency.exponentialRampToValueAtTime(Math.max(20,P[2]), t+P[3]); g.gain.setValueAtTime(P[4], t); g.gain.exponentialRampToValueAtTime(0.0001, t+P[3]); o.start(t); o.stop(t+P[3]+0.02); }
 
 // ---------- global state
-const G = { screen:'title', diff:1, target:2, timeLimit:90, mapIdx:-1, picks:[0,5], custom:[null,null], sel:{cursor:[0,5], locked:[false,false], stage:0}, edit:null, menuIdx:0, pause:false, t:0, lockOn:true, camA:0, camPitch:0.18, roomCode:'', phone:{connected:false, lastSeen:0}, role:'screen' };
+const G = { screen:'title', autoTrig:true, diff:0, target:2, timeLimit:90, mapIdx:-1, picks:[0,5], custom:[null,null], sel:{cursor:[0,5], locked:[false,false], stage:0}, edit:null, menuIdx:0, pause:false, t:0, lockOn:true, camA:0, camPitch:0.18, roomCode:'', phone:{connected:false, lastSeen:0}, role:'screen' };
 const DIFF_NAMES = ['かんたん','ふつう','つよい'];
-const DIFFS = [ {think:0.32, react:0.5, dodge:0.45, acc:0.55, aggr:0.6, sw:0.2}, {think:0.2, react:0.28, dodge:0.75, acc:0.8, aggr:0.8, sw:0.12}, {think:0.12, react:0.14, dodge:0.95, acc:1.0, aggr:1.0, sw:0.06} ];
+const DIFFS = [ {think:0.4, react:0.6, dodge:0.35, acc:0.45, aggr:0.5, sw:0.25, taken:0.55}, {think:0.22, react:0.3, dodge:0.7, acc:0.75, aggr:0.8, sw:0.12, taken:0.8}, {think:0.12, react:0.14, dodge:0.95, acc:1.0, aggr:1.0, sw:0.06, taken:1.0} ];
 let B = null;
 
-function emptyInput(){ return {dx:0, dy:0, lx:0, ly:0, main:false, sub:false, swMain:false, swSub:false, jump:false, mainP:false, subP:false, swMainP:false, swSubP:false, jumpP:false, lockP:false, mainR:false, subR:false, upP:false, downP:false, leftP:false, rightP:false, confirmP:false, backP:false, mx:0, mz:0}; }
+function emptyInput(){ return {slotMain:-1, slotSub:-1, dx:0, dy:0, lx:0, ly:0, main:false, sub:false, swMain:false, swSub:false, jump:false, mainP:false, subP:false, swMainP:false, swSubP:false, jumpP:false, lockP:false, mainR:false, subR:false, upP:false, downP:false, leftP:false, rightP:false, confirmP:false, backP:false, mx:0, mz:0}; }
 
 function makePlayer(i){
   const c = CHARS[G.picks[i]]; const set = G.custom[i] || {main:c.main, sub:c.sub};
@@ -231,7 +231,7 @@ function makePlayer(i){
     cd:{}, aim:0, lock:true, moving:false, stun:0, heavy:0, leak:0, marked:0, wireCd:0, bagworm:false, chameleon:false,
     shieldActive:false, shieldAng:0, shieldHalf:1, shieldMode:'', shieldCount:0, shield:{hp:0, max:0, broken:0, idle:9},
     dash:{t:0, vx:0, vz:0, attack:null, hitDone:false}, charging:false, chargeFrac:0, chargeHand:'main', chargingCube:false, cubeFrac:0, chargeLabel:'',
-    bailed:false, bailT:0, bailReason:'', viperSide:1, ai:null, input:emptyInput(), aimErr:0, stats:{dmg:0, hits:0, blocked:0, shots:0}, anim:{walk:0, swing:0, swingHand:'main'}, mesh:null };
+    bailed:false, bailT:0, bailReason:'', viperSide:1, ai:null, manualUntil:{main:0, sub:0}, input:emptyInput(), aimErr:0, stats:{dmg:0, hits:0, blocked:0, shots:0}, anim:{walk:0, swing:0, swingHand:'main'}, mesh:null };
   p.shield.max = TRIGGERS.shield.hp*p.shieldMul; p.shield.hp = p.shield.max; p.trion = p.trionMax;
   return p;
 }
@@ -300,6 +300,7 @@ function applyHit(t,dmg,sx,sy,sz,kind,att,opt){
   damageBody(t, dmg, att, kind, sx, sy, sz, opt); return true;
 }
 function damageBody(t,dmg,att,kind,sx,sy,sz,opt){
+  if (t.id === 0 && !t.ai) dmg *= DIFFS[G.diff].taken;
   dmg = Math.round(dmg*10)/10; t.body -= dmg; t.leak = Math.max(t.leak, kind === 'melee' ? 4 : 2.5);
   att.stats.dmg += dmg; att.stats.hits++; pop(t.x + rnd(-0.4,0.4), t.y+2.1, t.z, String(Math.round(dmg)), att.color, kind === 'sniper' || dmg >= 30 ? 26 : 18);
   hitFx(sx, sy, sz, '#ffffff', 8); B.shake = Math.max(B.shake, kind === 'explosion' ? 0.5 : 0.22); sfx('hit'); phoneEvent('hit');
@@ -331,7 +332,7 @@ function cutThings(p,range,half,dmg){
 function doMelee(p,T,hand){
   const e = enemyOf(p); p.chameleon = false; setCd(p, hand+':'+T.id, T.cd); p.anim.swing = 0.25; p.anim.swingHand = hand;
   addFx({type:'slash', p, ang:p.aim, range:T.range+p.r, half:T.half, t:0, dur:0.18, color:p.colorN, w:T.id === 'scorpion' ? 0.12 : 0.2, y:1.2}); sfx('slash');
-  meleeHitCheck(p, e, T.range, T.half, T.dmg*p.meleeMul, {shieldMul:1.5, knock:0.8});
+  meleeHitCheck(p, e, T.range + (p.ai ? 0 : 0.6), T.half + (p.ai ? 0 : 0.3), T.dmg*p.meleeMul, {shieldMul:1.5, knock:0.8});
   cutThings(p, T.range, T.half, T.dmg);
 }
 function doChargeAttack(p,hand,T,ca){
@@ -426,7 +427,31 @@ function deployShield(p,hand,mode){
   p.shieldHalf = p.shieldCount >= 2 ? Math.min(Math.PI, base + 0.8) : base;
   if (mode === 'raygust') p.shieldMode = 'raygust'; else if (p.shieldCount === 1) p.shieldMode = 'shield';
 }
-function cycleHand(p,hand){ const s = p[hand]; if (s.slots.length < 2) return; s.idx = (s.idx+1) % s.slots.length; s.hold = 0; s.charge = 0; sfx('ui'); if (p.mesh) refreshWeapons(p); }
+function cycleHand(p,hand){ const s = p[hand]; if (s.slots.length < 2) return; setHand(p, hand, (s.idx+1) % s.slots.length); }
+function setHand(p,hand,idx){ const s = p[hand]; if (idx < 0 || idx >= s.slots.length || idx === s.idx) return; s.idx = idx; s.hold = 0; s.charge = 0; sfx('ui'); if (p.mesh) refreshWeapons(p); }
+// Auto trigger: pick a sensible trigger for each hand by distance and threat (human player only)
+function autoPick(p){
+  const e = enemyOf(p); const d = dist2(p.x,p.z,e.x,e.z); const los = hasLOS(p,e); const threat = threatLevel(p);
+  const find = (hand, pred) => { let best = -1, bs = -1; p[hand].slots.forEach((t,i) => { const T = TRIGGERS[t]; const sc = pred(T); if (sc > bs){ bs = sc; best = i; } }); return bs > 0 ? best : -1; };
+  const isMelee = T => T.kind === 'melee' && !T.shieldMode; const reach = meleeReach(p);
+  if (!(p.manualUntil.main > G.t)){
+    let want = -1;
+    if (d < reach + 3.5) want = find('main', T => isMelee(T) ? T.dmg : (T.kind === 'melee' ? 1 : 0));
+    if (want < 0 && d > 20 && los) want = find('main', T => T.kind === 'sniper' ? T.dmg : 0);
+    if (want < 0) want = find('main', T => T.kind === 'bullet' && !T.heavy && !T.mark ? (T.blast ? 2 : 3) : 0);
+    if (want < 0) want = find('main', T => T.kind === 'sniper' ? 2 : (T.kind === 'melee' ? 1 : 0));
+    if (want >= 0) setHand(p, 'main', want);
+  }
+  if (!(p.manualUntil.sub > G.t)){
+    let want = -1;
+    if (threat > 0 && p.shield.broken <= 0) want = find('sub', T => T.kind === 'shield' ? 5 : (T.shieldMode ? 4 : 0));
+    if (want < 0 && d < reach + 3.5) want = find('sub', T => isMelee(T) ? T.dmg : 0);
+    if (want < 0 && reach > 0 && d > reach + 3) want = find('sub', T => T.kind === 'dash' || T.kind === 'blink' ? 3 : 0);
+    if (want < 0) want = find('sub', T => T.kind === 'bullet' && !T.heavy && !T.mark ? 3 : (T.kind === 'shield' ? 2 : 0));
+    if (want < 0) want = find('sub', T => T.kind === 'shield' ? 2 : (T.kind === 'melee' ? 1 : 0));
+    if (want >= 0) setHand(p, 'sub', want);
+  }
+}
 function updateHand(p,hand,dt){
   const Hh = p[hand]; const tid = Hh.slots[Hh.idx]; if (!tid) return; const T = TRIGGERS[tid]; const inp = p.input;
   const held = inp[hand], pr = inp[hand+'P'], rel = inp[hand+'R']; const key = hand+':'+tid;
@@ -485,7 +510,9 @@ function updatePlayer(p,dt){
   p.lock = canLock(p, e); if (p.lock) p.aim = Math.atan2(e.z-p.z, e.x-p.x); else if (p.id === 0 && !G.lockOn) p.aim = G.camA;
   if (p.id === 0 && !G.lockOn && p.lock) p.aim = G.camA;
   p.charging = false; p.chargingCube = false; p.chargeLabel = ''; p.shieldCount = 0; p.shieldActive = false; p.shieldMode = '';
-  if (p.input.swMainP) cycleHand(p,'main'); if (p.input.swSubP) cycleHand(p,'sub');
+  if (p.input.swMainP){ cycleHand(p,'main'); p.manualUntil.main = G.t + 5; } if (p.input.swSubP){ cycleHand(p,'sub'); p.manualUntil.sub = G.t + 5; }
+  if (p.input.slotMain >= 0){ setHand(p,'main',p.input.slotMain); p.manualUntil.main = G.t + 5; } if (p.input.slotSub >= 0){ setHand(p,'sub',p.input.slotSub); p.manualUntil.sub = G.t + 5; }
+  if (G.autoTrig && !p.ai && !p.input.main && !p.input.sub && p.dash.t <= 0) autoPick(p);
   updateHand(p,'main',dt); updateHand(p,'sub',dt);
   let mx = 0, mz = 0;
   if (p.dash.t > 0){
@@ -664,8 +691,8 @@ function aiInput(p,dt){
         case 'bullet': {
           if (T.heavy){ if (los && d < 32 && a.leadT <= 0){ a.press[hand] = true; a.leadT = 4; } }
           else if (T.mark){ if (sc >= 6 && los) a.press[hand] = true; }
-          else if (p.char.style === 'shooter' && !T.noSplit){ if (los && d < 42 && !a.held[hand] && a.t >= a.rest[hand] && !(a.held[other] && TRIGGERS[activeId(p,other)||'shield'].kind === 'bullet')){ a.held[hand] = true; a.holdUntil[hand] = a.t + rnd(0.25,0.5); a.rest[hand] = a.holdUntil[hand] + rnd(0.15,0.35); } }
-          else { a.held[hand] = los && d < 39 && Math.random() < 0.92; a.holdUntil[hand] = a.t + cfg.think + 0.02; }
+          else if (p.char.style === 'shooter' && !T.noSplit){ if (los && d < 42 && (p.trion > p.trionMax*0.2 || d < 12) && !a.held[hand] && a.t >= a.rest[hand] && !(a.held[other] && TRIGGERS[activeId(p,other)||'shield'].kind === 'bullet')){ a.held[hand] = true; a.holdUntil[hand] = a.t + rnd(0.25,0.5); a.rest[hand] = a.holdUntil[hand] + rnd(0.15,0.35); } }
+          else { a.held[hand] = los && d < 34 && Math.random() < 0.92 && (p.trion > p.trionMax*0.2 || d < 12); a.holdUntil[hand] = a.t + cfg.think + 0.02; }
           break; }
         case 'sniper': {
           if (los && d > 9 && p.lock){ a.held[hand] = true; a.holdUntil[hand] = a.t + 5; a.aiming = true; if (p[hand].charge >= T.charge + 0.05){ a.held[hand] = false; a.aiming = false; } }
@@ -953,6 +980,7 @@ function readInput(dt){
   o.swMainP = !!kP.KeyQ || mouse.wheel < -20; o.swSubP = !!kP.KeyE || mouse.wheel > 20; o.jumpP = !!kP.Space; o.lockP = !!kP.Tab;
   o.upP = !!kP.KeyW || !!kP.ArrowUp; o.downP = !!kP.KeyS || !!kP.ArrowDown; o.leftP = !!kP.KeyA || !!kP.ArrowLeft; o.rightP = !!kP.KeyD || !!kP.ArrowRight;
   o.confirmP = !!kP.Enter; o.backP = !!kP.Escape;
+  ['Digit1','Digit2','Digit3','Digit4'].forEach((c,i) => { if (kP[c]) o.slotMain = i; }); ['KeyZ','KeyX','KeyC','KeyV'].forEach((c,i) => { if (kP[c]) o.slotSub = i; });
   if (mouse.locked){ if (!G.lockOn){ G.camA += mouse.dx*0.0025; G.camPitch = clamp(G.camPitch - mouse.dy*0.0025, -0.3, 0.9); } }
   mouse.dx = mouse.dy = 0; mouse.wheel = 0;
   const g = gamepadState();
@@ -1088,8 +1116,8 @@ function drawPanel(p, i){
   for (let h=0; h<2; h++){ const hand = h === 0 ? 'main' : 'sub'; const ry = y0+86 + h*18; const tid = activeId(p,hand); const T = tid ? TRIGGERS[tid] : null; const info = cdInfo(p,hand);
     text(hand === 'main' ? 'MAIN' : 'SUB', ex, ry, {size:11, weight:700, num:true, align:al, color:'#8494ad'}); text(T ? T.name : '—', ex + dir*40, ry, {size:14, weight:700, align:al, color: info.frac >= 1 ? '#ffffff' : '#a8b4c8'});
     const cbx = right ? ex - 40 - 130 - 70 : ex + 40 + 130; ctx.fillStyle = '#131c30'; ctx.fillRect(cbx, ry-4, 70, 8); ctx.fillStyle = info.charge ? (info.frac >= 1 ? '#ff5252' : '#ffd166') : p.color; ctx.fillRect(cbx, ry-4, 70*clamp(info.frac,0,1), 8);
-    if (info.label) text(info.label, right ? cbx-6 : cbx+76, ry, {size:10, align:al, color:'#ffd166'}); else { const others = p[hand].slots.filter((s,j) => j !== p[hand].idx).map(s => TRIGGERS[s].name).join(' / '); if (others) text(others, right ? cbx-6 : cbx+76, ry, {size:10, align:al, color:'#5e6c86'}); } }
-  const chips = []; if (p.bagworm) chips.push(['BAGWORM','#8494ad']); if (p.chameleon) chips.push(['CHAMELEON','#8af5d2']); if (p.leak > 0) chips.push(['漏出','#ffffff']); if (p.heavy > 0) chips.push(['鉛弾','#b8c0cc']); if (p.stun > 0) chips.push(['拘束','#ffd166']); if (p.shield.broken > 0) chips.push(['盾破損','#ff5e5e']); if (!p.lock) chips.push(['ロック不可','#ff9d9d']);
+    if (info.label) text(info.label, right ? cbx-6 : cbx+76, ry, {size:10, align:al, color:'#ffd166'}); else if (i === 0){ const keysM = hand === 'main' ? ['1','2','3','4'] : ['Z','X','C','V']; const others = p[hand].slots.map((s,j) => keysM[j] + ':' + TRIGGERS[s].name + (j === p[hand].idx ? '◀' : '')).join('  '); text(others, cbx+76, ry, {size:10, align:al, color:'#8494ad'}); } else { const others = p[hand].slots.filter((s,j) => j !== p[hand].idx).map(s => TRIGGERS[s].name).join(' / '); if (others) text(others, right ? cbx-6 : cbx+76, ry, {size:10, align:al, color:'#5e6c86'}); } }
+  const chips = []; if (i === 0 && G.autoTrig) chips.push(['AUTO','#8af5d2']); if (p.bagworm) chips.push(['BAGWORM','#8494ad']); if (p.chameleon) chips.push(['CHAMELEON','#8af5d2']); if (p.leak > 0) chips.push(['漏出','#ffffff']); if (p.heavy > 0) chips.push(['鉛弾','#b8c0cc']); if (p.stun > 0) chips.push(['拘束','#ffd166']); if (p.shield.broken > 0) chips.push(['盾破損','#ff5e5e']); if (!p.lock) chips.push(['ロック不可','#ff9d9d']);
   let cx = right ? x0+PW-12 : x0+12; for (const [label,col] of chips){ font(10,700,F_NUM); const w = ctx.measureText(label).width + 10; const cxx = right ? cx-w : cx; ctx.fillStyle = hexToRgba(col,0.22); rrect(cxx, y0+PH+4, w, 16, 3); ctx.fill(); text(label, cxx+w/2, y0+PH+12, {size:10, weight:700, num:true, align:'center', color:col}); cx += dir*(w+6); }
 }
 function drawHUD(){
@@ -1106,7 +1134,7 @@ function drawHUD(){
   if (threeOK) for (const f of B.pops){ const pr = project(f.x, f.y, f.z); if (!pr) continue; const k = f.t/f.dur; ctx.save(); ctx.globalAlpha = 1-k*k; ctx.shadowColor = '#000'; ctx.shadowBlur = 4; text(f.text, pr.x, pr.y, {size:f.size, weight:700, num:/^\d+$/.test(f.text), align:'center', color:f.color}); ctx.restore(); }
   if (p.chargeLabel) text(p.chargeLabel + ' 待機中 — 離して発動', W/2, H-70, {size:14, weight:700, align:'center', color:'#ffffff'});
   ctx.globalAlpha = 0.65;
-  text('WASD 移動 ／ Space ジャンプ ／ 左クリック メイン ／ 右クリック サブ ／ Q・E 切替 ／ Tab ロックオン' + (G.lockOn ? ' ON' : ' OFF'), pad, H-12, {size:11, color:'#8494ad'});
+  text('WASD 移動 ／ Space ジャンプ ／ 左クリック メイン ／ 右クリック サブ ／ 1〜4・Z〜V 直接選択 ／ Q・E 切替 ／ Tab ロックオン' + (G.lockOn ? ' ON' : ' OFF'), pad, H-12, {size:11, color:'#8494ad'});
   text((G.phone.connected ? 'スマホ接続中' : (G.roomCode ? 'スマホ用コード ' + G.roomCode.toUpperCase() : '')) + '　CPU: ' + DIFF_NAMES[G.diff] + '　Esc ポーズ', W-pad, H-12, {size:11, align:'right', color:'#8494ad'});
   ctx.globalAlpha = 1;
 }
@@ -1133,6 +1161,7 @@ const MODE_ITEMS = [
   {label:'先取ポイント', get:() => G.target + '本先取', change:d => { G.target = clamp(G.target + d, 1, 5); }},
   {label:'制限時間', get:() => G.timeLimit + '秒 / ラウンド', change:d => { const o = [60,90,120,180]; G.timeLimit = o[(o.indexOf(G.timeLimit) + d + o.length) % o.length]; }},
   {label:'マップ', get:() => G.mapIdx < 0 ? 'ランダム' : MAPS[G.mapIdx].name, change:d => { const n = MAPS.length + 1; G.mapIdx = ((G.mapIdx + 1 + d + n) % n) - 1; }},
+  {label:'トリガー自動切替', get:() => G.autoTrig ? 'ON（距離に応じて自動。1〜4 / Z〜V で手動も可）' : 'OFF（Q/E・1〜4・Z〜V で切替）', change:() => { G.autoTrig = !G.autoTrig; }},
   {label:'カメラ', get:() => G.lockOn ? 'ロックオン（相手を自動で正面に）' : 'フリー（マウス／右スティックで視点）', change:() => { G.lockOn = !G.lockOn; }},
   {label:'隊員選択へ進む', get:() => '', change:() => {}},
 ];
@@ -1145,7 +1174,7 @@ function modeUpdate(){
 }
 function drawMode(){
   drawBackdrop(); text('対戦設定', W/2, 100, {size:40, weight:900, align:'center', color:'#ffffff'}); text('MATCH SETTINGS', W/2, 140, {size:14, weight:600, num:true, align:'center', color:'#8af5d2'});
-  MODE_ITEMS.forEach((it,i) => { const y = 215 + i*62; const sel = i === G.menuIdx; if (sel){ ctx.fillStyle = 'rgba(79,216,255,0.1)'; rrect(W/2-380, y-24, 760, 48, 6); ctx.fill(); ctx.strokeStyle = '#4fd8ff'; ctx.lineWidth = 1.5; ctx.stroke(); }
+  MODE_ITEMS.forEach((it,i) => { const y = 205 + i*58; const sel = i === G.menuIdx; if (sel){ ctx.fillStyle = 'rgba(79,216,255,0.1)'; rrect(W/2-380, y-24, 760, 48, 6); ctx.fill(); ctx.strokeStyle = '#4fd8ff'; ctx.lineWidth = 1.5; ctx.stroke(); }
     const last = i === MODE_ITEMS.length-1; text(it.label, last ? W/2 : W/2-350, y, {size:last ? 22 : 18, weight:700, align:last ? 'center' : 'left', color: sel ? '#ffffff' : '#a8b4c8'});
     if (!last){ text(it.get(), W/2+130, y, {size:18, weight:700, align:'center', color: sel ? '#4fd8ff' : '#dbe6f5'}); if (sel){ text('◀', W/2-70, y, {size:16, align:'center', color:'#8af5d2'}); text('▶', W/2+350, y, {size:16, align:'center', color:'#8af5d2'}); } } });
   text('↑↓ 項目　←→ 変更　Enter 決定　Esc 戻る', W/2, H-60, {size:14, align:'center', color:'#8494ad'}); text(roomLine(), W/2, H-32, {size:12, align:'center', color:'#5e6c86'});
