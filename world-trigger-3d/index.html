@@ -791,7 +791,7 @@ function buildArena(map){
   scene.add(arenaGroup); arenaGroup.userData.map = map;
 }
 // ---- characters (VRM humanoid model with procedural animation; procedural primitives as fallback)
-const MODEL_URL = 'models/agent.vrm';
+const MODEL_URL = 'models/agent.json';
 let modelFailed = false;
 function loadVrm(p, cb){
   if (modelFailed || !THREE.GLTFLoader){ cb(null); return; }
@@ -1332,7 +1332,7 @@ try { const hot = window.claude && window.claude.hot; if (hot && hot.snapshot) h
   const hd = hot && hot.data; if (hd && Array.isArray(hd.picks) && hd.picks.length === 2){ G.picks = hd.picks.map(v => clamp(v|0, 0, CHARS.length-1)); if (typeof hd.diff === 'number') G.diff = clamp(hd.diff|0,0,2); if (typeof hd.target === 'number') G.target = clamp(hd.target|0,1,5); if (typeof hd.timeLimit === 'number') G.timeLimit = hd.timeLimit; if (typeof hd.mapIdx === 'number') G.mapIdx = hd.mapIdx; if (typeof hd.lockOn === 'boolean') G.lockOn = hd.lockOn; } } catch(e) {}
 if (location.hash === '#controller') enterPadMode();
 let autopilot = false;
-window.WT_DEBUG = { start:(i,j,diff) => { G.picks = [i|0, j|0]; if (typeof diff === 'number') G.diff = diff; G.custom = [null,null]; startBattle(); }, perf:() => PERF, autopilot:v => { autopilot = !!v; if (B && autopilot && !B.players[0].ai) aiInit(B.players[0], DIFFS[G.diff]); }, state:() => ({screen:G.screen, three:threeOK, score:B ? B.score.slice() : null, round:B ? B.round : 0, winner:B ? B.winner : -1, phase:B ? B.phase : '', time:B ? B.time : 0, cursor:G.sel.cursor.slice(), stage:G.sel.stage, room:roomStatus, players:B ? B.players.map(p => ({name:p.char.name, body:Math.round(p.body), trion:Math.round(p.trion), bailed:p.bailed, dmg:Math.round(p.stats.dmg), hits:p.stats.hits, shots:p.stats.shots, x:+p.x.toFixed(1), y:+p.y.toFixed(1), z:+p.z.toFixed(1), main:activeId(p,'main'), sub:activeId(p,'sub')})) : null}) };
+window.WT_DEBUG = { start:(i,j,diff) => { G.picks = [i|0, j|0]; if (typeof diff === 'number') G.diff = diff; G.custom = [null,null]; startBattle(); }, perf:() => PERF, autopilot:v => { autopilot = !!v; if (B && autopilot && !B.players[0].ai) aiInit(B.players[0], DIFFS[G.diff]); }, state:() => ({screen:G.screen, three:threeOK, vrm:!!(B && B.players[0].mesh && B.players[0].mesh.userData.vrm), modelFailed, score:B ? B.score.slice() : null, round:B ? B.round : 0, winner:B ? B.winner : -1, phase:B ? B.phase : '', time:B ? B.time : 0, cursor:G.sel.cursor.slice(), stage:G.sel.stage, room:roomStatus, players:B ? B.players.map(p => ({name:p.char.name, body:Math.round(p.body), trion:Math.round(p.trion), bailed:p.bailed, dmg:Math.round(p.stats.dmg), hits:p.stats.hits, shots:p.stats.shots, x:+p.x.toFixed(1), y:+p.y.toFixed(1), z:+p.z.toFixed(1), main:activeId(p,'main'), sub:activeId(p,'sub')})) : null}) };
 requestAnimationFrame(frame);
 })();
 </script>
