@@ -966,7 +966,7 @@ function readInput(dt){
     const sy = g.dy, sx = g.dx; o.upP = o.upP || edge('up') || (sy < -0.6 && padStickPrev.y >= -0.6); o.downP = o.downP || edge('down') || (sy > 0.6 && padStickPrev.y <= 0.6); o.leftP = o.leftP || edge('left') || (sx < -0.6 && padStickPrev.x >= -0.6); o.rightP = o.rightP || edge('right') || (sx > 0.6 && padStickPrev.x <= 0.6);
     padStickPrev = {x:sx, y:sy}; for (const k in g) padPrev[k] = g[k];
   } else { for (const k in padPrev) padPrev[k] = false; padStickPrev = {x:0,y:0}; }
-  let ps = null; if (roomNamed){ try { for (const pr of roomNamed.peers()) if (!pr.isMe && pr.presence && pr.presence.role === 'pad'){ ps = pr.presence; break; } } catch(e) { ps = null; } }
+  let ps = null; if (roomNamed){ try { for (const pr of roomNamed.peers()) if (!pr.sameTab && pr.presence && pr.presence.role === 'pad'){ ps = pr.presence; break; } } catch(e) { ps = null; } }
   G.phone.connected = !!ps;
   if (ps){
     if (Math.abs(ps.mx) > 0.12 || Math.abs(ps.my) > 0.12){ o.dx = ps.mx; o.dy = ps.my; } if (Math.abs(ps.cx) > 0.1 || Math.abs(ps.cy) > 0.1){ o.lx = ps.cx; o.ly = ps.cy; }
@@ -1028,11 +1028,11 @@ async function padJoin(code){
   if (!roomApi){ st.textContent = roomStatus === 'init' ? '準備中…' : 'この環境では使えません'; return; }
   if (padRoom){ try { await padRoom.leave(); } catch(e) {} padRoom = null; }
   st.textContent = '接続中…';
-  try { padRoom = await roomApi.join('wt-' + code); } catch(e) { st.textContent = '接続失敗'; return; }
-  st.textContent = '接続済み'; st.classList.add('on'); padRoom.presence({role:'pad', mx:0, my:0, cx:0, cy:0, h:0, c:pad.c.slice()});
+  try { padRoom = await roomApi.join('wt-' + code); } catch(e) { st.textContent = '接続失敗: ' + ((e && e.code) || ''); return; }
+  st.textContent = 'PCを探しています…'; padRoom.presence({role:'pad', mx:0, my:0, cx:0, cy:0, h:0, c:pad.c.slice()});
   padRoom.on('hit', () => { try { if (navigator.vibrate) navigator.vibrate(35); } catch(e) {} }, () => {});
-  padRoom.onPeers(ch => { for (const pr of ch.peers){ if (!pr.isMe && pr.presence && pr.presence.role === 'screen' && pr.presence.hud) padHud(pr.presence.hud); } }, () => {});
-  padRoom.onConnection(c => { st.textContent = c ? '接続済み' : '再接続中…'; st.classList.toggle('on', c); }, () => {});
+  padRoom.onPeers(ch => { let found = false; for (const pr of ch.peers){ if (!pr.sameTab && pr.presence && pr.presence.role === 'screen'){ found = true; if (pr.presence.hud) padHud(pr.presence.hud); } } st.textContent = found ? 'PCと接続済み' : 'PCが見つかりません（コードを確認）'; st.classList.toggle('on', found); }, () => {});
+  padRoom.onConnection(c => { if (!c){ st.textContent = '再接続中…'; st.classList.remove('on'); } }, () => {});
   try { if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); } catch(e) {}
 }
 function padHud(h){ const $ = id => document.getElementById(id); $('ctlName').textContent = h.name || '—'; $('ctlBody').style.width = clamp(h.body,0,100) + '%'; $('ctlTrion').style.width = clamp(h.trion,0,100) + '%'; $('ctlEnemy').textContent = h.enemy || '—'; $('ctlEBody').style.width = clamp(h.ebody,0,100) + '%'; }
